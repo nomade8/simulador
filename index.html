@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cidade Bat - Simulador de Voo Puro</title>
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/postprocessing/EffectComposer.js": "https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js",
+        "three/examples/jsm/postprocessing/RenderPass.js": "https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js",
+        "three/examples/jsm/postprocessing/OutputPass.js": "https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/OutputPass.js",
+        "three/examples/jsm/utils/BufferGeometryUtils.js": "https://unpkg.com/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js",
+        "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.0/build/index.module.js"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div id="hud">
+        <div class="hud-item">
+            <span class="label">VELOCIDADE</span>
+            <span id="speed" class="value">0</span> <span class="unit">km/h</span>
+        </div>
+        <div class="hud-item">
+            <span class="label">ALTITUDE</span>
+            <span id="altitude" class="value">0</span> <span class="unit">m</span>
+        </div>
+        <div class="hud-item">
+            <span class="label">FLAPS</span>
+            <span id="flaps" class="value">0°</span>
+        </div>
+        <div class="hud-item">
+            <span class="label">TREM DE POUSO</span>
+            <span id="gearStatus" class="value">BAIXADO</span>
+        </div>
+        <div class="hud-item">
+            <span class="label">COMBUSTÍVEL</span>
+            <div class="bar-container">
+                <div id="fuelBar" class="bar fuel"></div>
+            </div>
+            <span id="fuel" class="value">100</span>%
+        </div>
+        <div class="hud-item">
+            <span class="label">INTEGRIDADE</span>
+            <div class="bar-container">
+                <div id="healthBar" class="bar health"></div>
+            </div>
+            <span id="health" class="value">100</span>%
+        </div>
+    </div>
+
+    <div id="crosshair">十</div>
+
+    <div id="gameOverScreen" class="overlay">
+        <div class="overlay-content">
+            <h1 id="gameOverTitle">SIMULAÇÃO ENCERRADA</h1>
+            <p id="gameOverMessage">Você colidiu!</p>
+            <button onclick="location.reload()">REINICIAR</button>
+        </div>
+    </div>
+
+    <div id="landingModal" class="overlay">
+        <div class="modal-content landing-report">
+            <h2>RELATÓRIO DE POUSO</h2>
+            <div class="rating-badge" id="landingGrade">-</div>
+            <div class="total-score" id="landingTotalScore">Pontuação: 0 / 1000</div>
+            
+            <div class="score-details">
+                <div class="detail-item">
+                    <div class="detail-header">
+                        <span>Alinhamento da Pista</span>
+                        <span id="centralityValue" class="detail-val">0.0m</span>
+                    </div>
+                    <div class="bar-container">
+                        <div id="centralityScoreBar" class="bar" style="width: 0%"></div>
+                    </div>
+                    <span id="centralityDesc" class="detail-desc">-</span>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-header">
+                        <span>Suavidade do Toque</span>
+                        <span id="forceValue" class="detail-val">0.0 m/s</span>
+                    </div>
+                    <div class="bar-container">
+                        <div id="forceScoreBar" class="bar" style="width: 0%"></div>
+                    </div>
+                    <span id="forceDesc" class="detail-desc">-</span>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="btnContinue" class="btn-primary">CONTINUAR VOO</button>
+                <button id="btnRestart" class="btn-secondary">REINICIAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls-hint">
+        <p>Setas / WASD: Pilotar | F: Flaps | Espaço: Desacelerar | X: Acelerar | V: Câmera</p>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
