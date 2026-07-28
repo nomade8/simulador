@@ -81,8 +81,8 @@ class FlightSimulator {
             // Mensagem de Pouso HUD
             this.createLandingMessage();
 
-            // Câmera e Renderizador
-            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 20000);
+            // Câmera e Renderizador (near plane 0.2 para evitar Z-fighting e renderizar pistas perfeitamente)
+            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.2, 20000);
             this.renderer = new THREE.WebGLRenderer({
                 antialias: false,
                 logarithmicDepthBuffer: false
@@ -427,7 +427,7 @@ class FlightSimulator {
             });
             const plazaMesh = new THREE.Mesh(plazaGeom, plazaMat);
             plazaMesh.rotation.x = -Math.PI / 2;
-            plazaMesh.position.y = 0.015;
+            plazaMesh.position.y = 0.08;
             plazaMesh.receiveShadow = true;
             runwayGroup.add(plazaMesh);
         }
@@ -444,7 +444,7 @@ class FlightSimulator {
         });
         const runwayMesh = new THREE.Mesh(runwayGeom, runwayMat);
         runwayMesh.rotation.x = -Math.PI / 2;
-        runwayMesh.position.y = 0.035;
+        runwayMesh.position.y = 0.15;
         runwayMesh.receiveShadow = true;
         runwayGroup.add(runwayMesh);
 
@@ -458,7 +458,7 @@ class FlightSimulator {
         });
         const border = new THREE.Mesh(borderGeom, borderMat);
         border.rotation.x = -Math.PI / 2;
-        border.position.y = 0.025;
+        border.position.y = 0.12;
         runwayGroup.add(border);
 
         // Material comum de marcação branca
@@ -475,7 +475,7 @@ class FlightSimulator {
         for (let z = -halfLen + 15; z <= halfLen - 15; z += 7) {
             const centerline = new THREE.Mesh(centerlineGeom, stripeMat);
             centerline.rotation.x = -Math.PI / 2;
-            centerline.position.set(0, 0.05, z);
+            centerline.position.set(0, 0.18, z);
             runwayGroup.add(centerline);
         }
 
@@ -486,7 +486,7 @@ class FlightSimulator {
                 if (k === 0) continue;
                 const key = new THREE.Mesh(thresholdKeyGeom, stripeMat);
                 key.rotation.x = -Math.PI / 2;
-                key.position.set(k * 0.8, 0.05, thresholdZ);
+                key.position.set(k * 0.8, 0.18, thresholdZ);
                 runwayGroup.add(key);
             }
         });
@@ -497,7 +497,7 @@ class FlightSimulator {
             [-1.8, 1.8].forEach((tdX) => {
                 const tdMark = new THREE.Mesh(touchdownGeom, stripeMat);
                 tdMark.rotation.x = -Math.PI / 2;
-                tdMark.position.set(tdX, 0.05, tdZ);
+                tdMark.position.set(tdX, 0.18, tdZ);
                 runwayGroup.add(tdMark);
             });
         });
@@ -511,11 +511,11 @@ class FlightSimulator {
         // Luzes de soleiras (Verde entrada, Vermelho fim)
         for (let side = -1; side <= 1; side += 2) {
             const gLight = new THREE.Mesh(lightGeom, greenLightMat);
-            gLight.position.set(side * (width / 2 + 0.6), 0.08, halfLen - 1);
+            gLight.position.set(side * (width / 2 + 0.6), 0.22, halfLen - 1);
             runwayGroup.add(gLight);
 
             const rLight = new THREE.Mesh(lightGeom, redLightMat);
-            rLight.position.set(side * (width / 2 + 0.6), 0.08, -halfLen + 1);
+            rLight.position.set(side * (width / 2 + 0.6), 0.22, -halfLen + 1);
             runwayGroup.add(rLight);
         }
 
@@ -523,7 +523,7 @@ class FlightSimulator {
         for (let z = -halfLen + 5; z <= halfLen - 5; z += 10) {
             for (let side = -1; side <= 1; side += 2) {
                 const edgeLight = new THREE.Mesh(lightGeom, whiteLightMat);
-                edgeLight.position.set(side * (width / 2 + 0.6), 0.08, z);
+                edgeLight.position.set(side * (width / 2 + 0.6), 0.22, z);
                 runwayGroup.add(edgeLight);
             }
         }
@@ -891,6 +891,11 @@ class FlightSimulator {
         };
 
         document.addEventListener('keydown', (event) => {
+            // Ignorar atalhos de voo se o usuário estiver digitando nos campos de texto do Piloto Automático
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+
             const key = event.key.toLowerCase();
             if (key === 'v') {
                 this.toggleCameraMode();
@@ -915,6 +920,10 @@ class FlightSimulator {
         });
 
         document.addEventListener('keyup', (event) => {
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+
             const key = event.key.toLowerCase();
             const code = event.key;
             if (keyStates.hasOwnProperty(code) || keyStates.hasOwnProperty(key)) {
