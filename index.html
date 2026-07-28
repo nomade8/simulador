@@ -106,14 +106,30 @@
             </div>
             
             <div class="modal-buttons">
+                <button id="btnReplay" class="btn-replay">▶ VER REPLAY (20s)</button>
                 <button id="btnContinue" class="btn-primary">CONTINUAR VOO</button>
                 <button id="btnRestart" class="btn-secondary">REINICIAR</button>
             </div>
         </div>
     </div>
 
+    <!-- Replay HUD Overlay -->
+    <div id="replayHUD" class="replay-hud">
+        <div class="replay-badge">🔴 REPLAY DOS ÚLTIMOS 20 SEGUNDOS</div>
+        <div class="replay-controls">
+            <button id="btnReplayPlayPause" class="replay-btn">⏸ Pausar</button>
+            <button id="btnReplaySpeed" class="replay-btn">⚡ Vel: 1.0x</button>
+            <button id="btnReplayRestart" class="replay-btn">🔄 Reiniciar</button>
+            <button id="btnReplayExit" class="replay-btn replay-exit">❌ Sair do Replay</button>
+        </div>
+        <div class="replay-progress-container">
+            <div id="replayProgressBar" class="replay-progress-bar"></div>
+        </div>
+        <div class="replay-hint">Pressione 'V' para alternar o ângulo da câmera (Traseira / Cockpit / Órbita 360° Mouse)</div>
+    </div>
+
     <div id="controls-hint">
-        <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto Automático | Espaço: Frear | X: Acelerar | V: Câmera</p>
+        <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto Automático | R: Replay | V: Câmera (Traseira / Cockpit / Órbita 360° Mouse)</p>
     </div>
 
     <script type="module" src="./main.js?v=1.0.2"></script>

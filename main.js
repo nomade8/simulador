@@ -47,6 +47,39 @@ class FlightSimulator {
             if (btnRestart) {
                 btnRestart.addEventListener('click', () => location.reload());
             }
+            const btnReplay = document.getElementById('btnReplay');
+            if (btnReplay) {
+                btnReplay.addEventListener('click', () => this.startReplay());
+            }
+
+            // Ouvintes dos botões do HUD de Replay
+            const btnReplayPlayPause = document.getElementById('btnReplayPlayPause');
+            if (btnReplayPlayPause) {
+                btnReplayPlayPause.addEventListener('click', () => this.toggleReplayPause());
+            }
+            const btnReplaySpeed = document.getElementById('btnReplaySpeed');
+            if (btnReplaySpeed) {
+                btnReplaySpeed.addEventListener('click', () => this.cycleReplaySpeed());
+            }
+            const btnReplayRestart = document.getElementById('btnReplayRestart');
+            if (btnReplayRestart) {
+                btnReplayRestart.addEventListener('click', () => {
+                    this.replayIndex = 0;
+                });
+            }
+            const btnReplayExit = document.getElementById('btnReplayExit');
+            if (btnReplayExit) {
+                btnReplayExit.addEventListener('click', () => this.stopReplay());
+            }
+
+            // Estado do Replay (Últimos 20 segundos)
+            this.flightHistory = [];
+            this.maxHistoryDuration = 20;
+            this.isReplaying = false;
+            this.replayIndex = 0;
+            this.replaySpeed = 1.0;
+            this.replayPaused = false;
+            this.recordedReplayData = [];
 
             // Estado de voo adicional para pouso
             this.lastAltitude = 400;
@@ -146,6 +179,11 @@ class FlightSimulator {
             };
 
             this.cameraMode = 'thirdPerson';
+            this.orbitYaw = 0;
+            this.orbitPitch = 0.3;
+            this.orbitDistance = 12;
+            this.isMouseDragging = false;
+            this.previousMousePosition = { x: 0, y: 0 };
 
             this.cameraShake = { frames: 0, totalFrames: 0, intensity: 0 };
 
@@ -911,6 +949,13 @@ class FlightSimulator {
                 // Alternar recolhimento das rodas / trem de pouso
                 this.planeState.gearRetracted = !this.planeState.gearRetracted;
             }
+            if (key === 'r') {
+                if (this.isReplaying) {
+                    this.stopReplay();
+                } else {
+                    this.startReplay();
+                }
+            }
 
             const code = event.key;
             if (keyStates.hasOwnProperty(code) || keyStates.hasOwnProperty(key)) {
@@ -933,13 +978,137 @@ class FlightSimulator {
                 this.updatePlaneStateFromKeys(keyStates);
             }
         });
+
+        // Controles de mouse para a 3ª câmera (Visão Externa Orbital)
+        window.addEventListener('pointerdown', (e) => {
+            if (this.cameraMode === 'orbit') {
+                this.isMouseDragging = true;
+                this.previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (this.isMouseDragging && this.cameraMode === 'orbit') {
+                const deltaX = e.clientX - this.previousMousePosition.x;
+                const deltaY = e.clientY - this.previousMousePosition.y;
+
+                this.orbitYaw -= deltaX * 0.005;
+                this.orbitPitch += deltaY * 0.005;
+
+                const maxPitch = Math.PI / 2 - 0.05;
+                const minPitch = -Math.PI / 2 + 0.05;
+                this.orbitPitch = THREE.MathUtils.clamp(this.orbitPitch, minPitch, maxPitch);
+
+                this.previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        window.addEventListener('pointerup', () => {
+            this.isMouseDragging = false;
+        });
+
+        window.addEventListener('pointercancel', () => {
+            this.isMouseDragging = false;
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (this.cameraMode === 'orbit') {
+                this.orbitDistance += e.deltaY * 0.01;
+                this.orbitDistance = THREE.MathUtils.clamp(this.orbitDistance, 4, 50);
+            }
+        }, { passive: true });
     }
 
     toggleCameraMode() {
         if (this.cameraMode === 'thirdPerson') {
             this.cameraMode = 'front';
+        } else if (this.cameraMode === 'front') {
+            this.cameraMode = 'orbit';
+            this.orbitYaw = Math.PI + (this.planeState ? this.planeState.rotation : 0);
+            this.orbitPitch = 0.2;
         } else {
             this.cameraMode = 'thirdPerson';
+        }
+    }
+
+    startReplay() {
+        if (!this.flightHistory || this.flightHistory.length === 0) return;
+
+        // Clonar os últimos 20s gravados no histórico de voo
+        this.recordedReplayData = this.flightHistory.map(item => ({
+            time: item.time,
+            position: item.position.clone(),
+            quaternion: item.quaternion.clone(),
+            rotation: item.rotation,
+            pitch: item.pitch,
+            roll: item.roll,
+            speed: item.speed,
+            altitude: item.altitude,
+            fuel: item.fuel,
+            flapTarget: item.flapTarget,
+            gearRetracted: item.gearRetracted
+        }));
+
+        if (this.recordedReplayData.length < 2) return;
+
+        this.isReplaying = true;
+        this.replayIndex = 0;
+        this.replayPaused = false;
+        this.replaySpeed = 1.0;
+
+        // Ocultar modal de pouso se exibido
+        if (this.landingModal) {
+            this.landingModal.classList.remove('visible');
+            this.landingModal.style.display = 'none';
+        }
+
+        // Exibir HUD de Replay
+        const replayHUD = document.getElementById('replayHUD');
+        if (replayHUD) {
+            replayHUD.classList.add('visible');
+        }
+
+        const speedBtn = document.getElementById('btnReplaySpeed');
+        if (speedBtn) speedBtn.textContent = '⚡ Vel: 1.0x';
+
+        const pauseBtn = document.getElementById('btnReplayPlayPause');
+        if (pauseBtn) pauseBtn.textContent = '⏸ Pausar';
+    }
+
+    stopReplay() {
+        this.isReplaying = false;
+        const replayHUD = document.getElementById('replayHUD');
+        if (replayHUD) {
+            replayHUD.classList.remove('visible');
+        }
+
+        // Retornar ao relatório de pouso se havíamos acabado de pousar
+        if (this.touchdownData && this.landingModal) {
+            this.landingModal.style.display = 'flex';
+            setTimeout(() => this.landingModal.classList.add('visible'), 50);
+        }
+    }
+
+    toggleReplayPause() {
+        this.replayPaused = !this.replayPaused;
+        const pauseBtn = document.getElementById('btnReplayPlayPause');
+        if (pauseBtn) {
+            pauseBtn.textContent = this.replayPaused ? '▶ Reproduzir' : '⏸ Pausar';
+        }
+    }
+
+    cycleReplaySpeed() {
+        if (this.replaySpeed === 1.0) {
+            this.replaySpeed = 0.5; // Câmera Lenta
+        } else if (this.replaySpeed === 0.5) {
+            this.replaySpeed = 2.0; // Acelerado
+        } else {
+            this.replaySpeed = 1.0; // Normal
+        }
+
+        const speedBtn = document.getElementById('btnReplaySpeed');
+        if (speedBtn) {
+            speedBtn.textContent = `⚡ Vel: ${this.replaySpeed.toFixed(1)}x`;
         }
     }
 
@@ -1460,10 +1629,108 @@ class FlightSimulator {
             return;
         }
 
+        if (this.isReplaying) {
+            if (!this.replayPaused && this.recordedReplayData.length > 1) {
+                this.replayIndex += this.replaySpeed * 0.4;
+
+                if (this.replayIndex >= this.recordedReplayData.length - 1) {
+                    this.replayIndex = 0; // Loop automático do replay
+                }
+            }
+
+            const idx = Math.floor(this.replayIndex);
+            const nextIdx = Math.min(idx + 1, this.recordedReplayData.length - 1);
+            const alpha = this.replayIndex - idx;
+
+            const frameA = this.recordedReplayData[idx];
+            const frameB = this.recordedReplayData[nextIdx];
+
+            if (frameA && frameB) {
+                // Interpolação suave de posição e rotação
+                this.airplane.position.lerpVectors(frameA.position, frameB.position, alpha);
+                this.airplane.quaternion.slerpQuaternions(frameA.quaternion, frameB.quaternion, alpha);
+
+                // Atualizar estado das superfícies móveis de controle
+                if (this.airplane.userData && typeof this.airplane.userData.updateControlSurfaces === 'function') {
+                    this.airplane.userData.updateControlSurfaces({
+                        rotation: THREE.MathUtils.lerp(frameA.rotation, frameB.rotation, alpha),
+                        pitch: THREE.MathUtils.lerp(frameA.pitch, frameB.pitch, alpha),
+                        roll: THREE.MathUtils.lerp(frameA.roll, frameB.roll, alpha),
+                        flapAngle: frameA.flapTarget || 0,
+                        gearRetracted: frameA.gearRetracted
+                    });
+                }
+
+                // Atualizar estado de voo temporário para exibir no HUD
+                this.planeState.speed = THREE.MathUtils.lerp(frameA.speed, frameB.speed, alpha);
+                this.planeState.altitude = THREE.MathUtils.lerp(frameA.altitude, frameB.altitude, alpha);
+                this.planeState.fuel = frameA.fuel;
+                this.planeState.rotation = THREE.MathUtils.lerp(frameA.rotation, frameB.rotation, alpha);
+
+                // Progresso no Replay HUD
+                const progressBar = document.getElementById('replayProgressBar');
+                if (progressBar) {
+                    const progress = (this.replayIndex / (this.recordedReplayData.length - 1)) * 100;
+                    progressBar.style.width = `${progress}%`;
+                }
+            }
+
+            // Suporte completo a troca de câmeras (V) durante o Replay (incluindo órbita 360° no mouse)
+            if (this.cameraMode === 'thirdPerson') {
+                if (this.airplane) this.airplane.visible = true;
+                const targetCameraPosition = this.airplane.position.clone().add(this.cameraOffset.clone().applyQuaternion(this.airplane.quaternion));
+                this.camera.position.lerp(targetCameraPosition, 0.15);
+                this.camera.lookAt(this.airplane.position);
+            } else if (this.cameraMode === 'front') {
+                if (this.airplane) this.airplane.visible = false;
+                const frontOffset = new THREE.Vector3(0, 0.4, 0.2);
+                const targetCameraPosition = frontOffset.clone().applyQuaternion(this.airplane.quaternion).add(this.airplane.position);
+                this.camera.position.copy(targetCameraPosition);
+                const targetRotation = this.airplane.quaternion.clone().multiply(
+                    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
+                );
+                this.camera.quaternion.copy(targetRotation);
+            } else if (this.cameraMode === 'orbit') {
+                if (this.airplane) this.airplane.visible = true;
+                const x = this.orbitDistance * Math.cos(this.orbitPitch) * Math.sin(this.orbitYaw);
+                const y = this.orbitDistance * Math.sin(this.orbitPitch);
+                const z = this.orbitDistance * Math.cos(this.orbitPitch) * Math.cos(this.orbitYaw);
+                const targetCameraPosition = this.airplane.position.clone().add(new THREE.Vector3(x, y, z));
+                this.camera.position.copy(targetCameraPosition);
+                this.camera.lookAt(this.airplane.position);
+            }
+
+            this.updateHUD();
+            this.composer.render();
+            requestAnimationFrame(() => this.animate());
+            return;
+        }
+
         if (this.landingReportDisplayed) {
             this.composer.render();
             requestAnimationFrame(() => this.animate());
             return;
+        }
+
+        // Gravar histórico contínuo de voo para Replay (últimos 20 segundos)
+        const nowHistory = performance.now();
+        this.flightHistory.push({
+            time: nowHistory,
+            position: this.airplane.position.clone(),
+            quaternion: this.airplane.quaternion.clone(),
+            rotation: this.planeState.rotation,
+            pitch: this.planeState.pitch,
+            roll: this.planeState.roll,
+            speed: this.planeState.speed,
+            altitude: this.planeState.altitude,
+            fuel: this.planeState.fuel,
+            flapTarget: this.planeState.flapTarget,
+            gearRetracted: this.planeState.gearRetracted
+        });
+
+        const cutoffHistory = nowHistory - (this.maxHistoryDuration * 1000);
+        while (this.flightHistory.length > 0 && this.flightHistory[0].time < cutoffHistory) {
+            this.flightHistory.shift();
         }
 
         // Atualizar áudio do motor
@@ -1574,14 +1841,17 @@ class FlightSimulator {
                 }
             }
 
+            const WHEEL_HEIGHT_OFFSET = 0.36; // Altura exata da base dos pneus ao centro do avião (escala 0.25)
+            const groundTouchThreshold = 0.38; // Limiar de tolerância para contato das rodas
+
             // Detectar Pouso Sem Trem de Pouso (Explosão)
-            if (distanceToGround < 0.45 && this.planeState.gearRetracted) {
+            if (distanceToGround <= groundTouchThreshold && this.planeState.gearRetracted) {
                 this.handleCrash("pouso sem trem de pouso");
                 return;
             }
 
             // Detectar o Toque no Solo (Touchdown)
-            if (distanceToGround < 0.45 && onRunway && this.wasInAir) {
+            if (distanceToGround <= groundTouchThreshold && onRunway && this.wasInAir) {
                 this.wasInAir = false;
                 const targetRunwayX = activeRunway ? activeRunway.position.x : planePos.x;
                 const deviation = Math.abs(planePos.x - targetRunwayX);
@@ -1602,15 +1872,16 @@ class FlightSimulator {
                 this.startCameraShake(shakeIntensity, shakeFrames);
             }
 
-            if (distanceToGround < 0.4) {
-                const minHeight = actualGroundY + 0.225; // Altura nivelada do trem de pouso
+            const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET; // Altura exata nivelada dos pneus no asfalto
+
+            if (distanceToGround <= groundTouchThreshold) {
                 if (this.airplane.position.y < minHeight) {
-                    this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.15);
+                    this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.2);
                 }
 
                 // Se não estiver na pista de pouso e encostar no solo
                 if (!onRunway) {
-                    if (distanceToGround < 0.28) {
+                    if (distanceToGround <= 0.27) {
                         // Causa dano proporcional à velocidade fora da pista
                         if (this.planeState.speed > 3) {
                             const damage = this.planeState.speed * 4;
@@ -1628,8 +1899,8 @@ class FlightSimulator {
                 }
             }
 
-            this._isOnGround = (distanceToGround < 0.45);
-            this._currentMinHeight = actualGroundY + 0.23;
+            this._isOnGround = (distanceToGround <= groundTouchThreshold);
+            this._currentMinHeight = minHeight;
             this._onGroundOnRunway = (this._isOnGround && onRunway && this.planeState.speed < 1);
         } else {
             this.planeState.altitude = this.airplane.position.y;
@@ -1781,6 +2052,18 @@ class FlightSimulator {
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
             );
             this.camera.quaternion.slerp(targetRotation, 0.1);
+        } else if (this.cameraMode === 'orbit') {
+            if (this.airplane && !this.gameOver) {
+                this.airplane.visible = true;
+            }
+            // Câmera Externa Orbital 360° em volta do avião controlada pelo mouse
+            const x = this.orbitDistance * Math.cos(this.orbitPitch) * Math.sin(this.orbitYaw);
+            const y = this.orbitDistance * Math.sin(this.orbitPitch);
+            const z = this.orbitDistance * Math.cos(this.orbitPitch) * Math.cos(this.orbitYaw);
+            const targetCameraPosition = this.airplane.position.clone().add(new THREE.Vector3(x, y, z));
+
+            this.camera.position.lerp(targetCameraPosition, 0.15);
+            this.camera.lookAt(this.airplane.position);
         }
 
         // Tremor de câmera (shake) unificado aplicado após o posicionamento e rotação da câmera
@@ -1793,8 +2076,8 @@ class FlightSimulator {
             const step = this.cameraShake.totalFrames - this.cameraShake.frames;
             const freq = step * 0.5;
 
-            if (this.cameraMode === 'thirdPerson') {
-                // Em terceira pessoa: solavanco muito sutil e sem trancos aleatórios
+            if (this.cameraMode === 'thirdPerson' || this.cameraMode === 'orbit') {
+                // Em terceira pessoa / órbita: solavanco muito sutil e sem trancos aleatórios
                 const offsetX = Math.sin(freq) * shakeAmount * 0.15;
                 const offsetY = Math.cos(freq * 1.3) * shakeAmount * 0.25;
                 const offsetZ = Math.sin(freq * 0.8) * shakeAmount * 0.1;

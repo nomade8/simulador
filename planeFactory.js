@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export const PLANE_SCALE = 0.25;
+export const PLANE_SCALE = 0.35;
 
 const _tempMatrix = new THREE.Matrix4();
 const _hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -171,7 +171,7 @@ export function createPlayerPlane(scene, fuselageColor = '#0e036b') {
     });
 
     const engineHousingMat = new THREE.MeshStandardMaterial({
-        color: 0x2c3e50,
+        color: '#191cd1',
         roughness: 0.4,
         metalness: 0.6
     });
