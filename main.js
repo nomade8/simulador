@@ -7,6 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createPlayerPlane } from './planeFactory.js';
 import CityManager from './city.js';
 import City2Manager from './city2.js';
+import Autopilot from './autopilot.js';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -148,6 +149,9 @@ class FlightSimulator {
 
             this.cameraShake = { frames: 0, totalFrames: 0, intensity: 0 };
 
+            // Instanciar o Piloto Automático
+            this.autopilot = new Autopilot(this);
+
             this.updateHealthBar();
             this.updateHUD();
 
@@ -245,12 +249,16 @@ class FlightSimulator {
         const posAttr = groundGeometry.attributes.position;
         const count = posAttr.count;
 
-        // Centros das pistas para achatamento perfeito das zonas de pouso/aeródromos
+        // Centros de todas as 8 pistas (4 principais + 4 pequenas) para achatamento perfeito das zonas de pouso
         const runwayCenters = [
             new THREE.Vector2(0, 0),
             new THREE.Vector2(600, 700),
             new THREE.Vector2(-600, -500),
-            new THREE.Vector2(-700, 400)
+            new THREE.Vector2(-700, 400),
+            new THREE.Vector2(1000, -800),
+            new THREE.Vector2(-1100, 900),
+            new THREE.Vector2(-400, -1200),
+            new THREE.Vector2(1200, 500)
         ];
 
         // Função de ruído multi-oitavas para montar a topografia procedural
@@ -362,12 +370,18 @@ class FlightSimulator {
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
 
-        // Criar 4 Pistas de Pouso Idênticas com luzes e marcadores completos
+        // Criar 4 Pistas de Pouso Principais
         this.runways = [];
         this.createRunway({ position: new THREE.Vector3(0, 0, 0), width: 8.5, length: 140 });
         this.createRunway({ position: new THREE.Vector3(600, 0, 700), width: 8.5, length: 140 });
         this.createRunway({ position: new THREE.Vector3(-600, 0, -500), width: 8.5, length: 140 });
         this.createRunway({ position: new THREE.Vector3(-700, 0, 400), width: 8.5, length: 140 });
+
+        // Criar 4 Pistas Pequenas (Aeródromos) com a mesma marcação completa, soleiras e iluminação
+        this.createRunway({ position: new THREE.Vector3(1000, 0, -800), width: 5.5, length: 90, rotationY: Math.PI  });
+        this.createRunway({ position: new THREE.Vector3(-1100, 0, 900), width: 5.5, length: 90, rotationY: (2 * Math.PI) / 2 });
+        this.createRunway({ position: new THREE.Vector3(-400, 0, -1200), width: 5.5, length: 90, rotationY: Math.PI  });
+        this.createRunway({ position: new THREE.Vector3(1200, 0, 500), width: 5.5, length: 90, rotationY: (5 * Math.PI) });
 
         // Vegetação e Parques Eólicos nas montanhas
         this.ground.updateMatrixWorld(true);
@@ -382,7 +396,11 @@ class FlightSimulator {
         this.city2Manager = new City2Manager(this.scene, this.ground, [
             new THREE.Vector3(600, 0, 700),
             new THREE.Vector3(-600, 0, -500),
-            new THREE.Vector3(-700, 0, 400)
+            new THREE.Vector3(-700, 0, 400),
+            new THREE.Vector3(1000, 0, -800),
+            new THREE.Vector3(-1100, 0, 900),
+            new THREE.Vector3(-400, 0, -1200),
+            new THREE.Vector3(1200, 0, 500)
         ]);
     }
 
@@ -400,7 +418,7 @@ class FlightSimulator {
         if (config.hasAirportPlaza || (position.x !== 0 || position.z !== 0)) {
             const plazaGeom = new THREE.PlaneGeometry(80, 180);
             const plazaMat = new THREE.MeshStandardMaterial({
-                color: 0x5a5d64,
+                color: '#696e6a',
                 roughness: 0.8,
                 metalness: 0.1,
                 polygonOffset: true,
@@ -527,6 +545,26 @@ class FlightSimulator {
         return runwayData;
     }
 
+    /**
+     * Criador de 4 Pistas Menores (Metade do tamanho padrão: 4.25m x 70m)
+     * Utiliando THREE.InstancedMesh para alta performance com diferentes Headings
+     */
+    createSmallInstancedRunways() {
+        // As 4 pistas pequenas agora são geradas diretamente via createRunway
+        // com todas as marcações de cabeceira, zona de toque e iluminação.
+    }
+
+    isPosOnRunway(planePos, r) {
+        const dx = planePos.x - r.position.x;
+        const dz = planePos.z - r.position.z;
+        const rot = r.rotationY || 0;
+        const cos = Math.cos(-rot);
+        const sin = Math.sin(-rot);
+        const localX = dx * cos - dz * sin;
+        const localZ = dx * sin + dz * cos;
+        return (Math.abs(localX) < r.width / 2 + 1.2 && Math.abs(localZ) < r.length / 2 + 2.0);
+    }
+
     createStylizedVegetation() {
         const createTreeMaterial = () => {
             const hue = 0.33 + (Math.random() * 0.12 - 0.06);
@@ -553,7 +591,11 @@ class FlightSimulator {
             { x: 0, z: 0 },
             { x: 600, z: 700 },
             { x: -600, z: -500 },
-            { x: -700, z: 400 }
+            { x: -700, z: 400 },
+            { x: 1000, z: -800 },
+            { x: -1100, z: 900 },
+            { x: -400, z: -1200 },
+            { x: 1200, z: 500 }
         ];
 
         const raycaster = new THREE.Raycaster();
@@ -648,11 +690,11 @@ class FlightSimulator {
 
         // Locais nas cristas de serras para instalar turbinas eólicas
         const turbineLocations = [
-            { x: 900, z: -800 },
-            { x: 950, z: -700 },
-            { x: 1000, z: -600 },
+            { x: 800, z: -950 },
+            { x: 850, z: -1050 },
+            { x: 900, z: -600 },
             { x: 1050, z: -500 },
-            { x: -1100, z: 900 },
+            { x: -1000, z: 900 },
             { x: -1150, z: 1020 },
             { x: -1200, z: 1140 },
             { x: 800, z: 1200 },
@@ -808,6 +850,19 @@ class FlightSimulator {
         if (fuelBar) {
             fuelBar.style.width = `${this.planeState.fuel}%`;
         }
+
+        // Atualizar Proa / Heading (0° a 360°) no topo da tela
+        let headingDeg = Math.round((-this.planeState.rotation * (180 / Math.PI)) % 360);
+        if (headingDeg < 0) headingDeg += 360;
+
+        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const index = Math.round(headingDeg / 45) % 8;
+        const cardinal = directions[index];
+
+        const hdgValEl = document.getElementById('headingValue');
+        const cardValEl = document.getElementById('cardinalValue');
+        if (hdgValEl) hdgValEl.textContent = `${headingDeg.toString().padStart(3, '0')}°`;
+        if (cardValEl) cardValEl.textContent = cardinal;
         
         this.updateHealthBar();
     }
@@ -1115,9 +1170,7 @@ class FlightSimulator {
         let onRunway = false;
 
         for (let r of this.runways) {
-            const localX = planePos.x - r.position.x;
-            const localZ = planePos.z - r.position.z;
-            if (Math.abs(localX) < r.width / 2 + 1.0 && Math.abs(localZ) < r.length / 2) {
+            if (this.isPosOnRunway(planePos, r)) {
                 onRunway = true;
                 break;
             }
@@ -1504,9 +1557,7 @@ class FlightSimulator {
             const planePos = this.airplane.position;
 
             for (let r of (this.runways || [])) {
-                const localX = planePos.x - r.position.x;
-                const localZ = planePos.z - r.position.z;
-                if (Math.abs(localX) < r.width / 2 + 1.0 && Math.abs(localZ) < r.length / 2) {
+                if (this.isPosOnRunway(planePos, r)) {
                     onRunway = true;
                     activeRunway = r;
                     break;
@@ -1576,6 +1627,11 @@ class FlightSimulator {
             this._onGroundOnRunway = false;
             this.lastAltitude = this.airplane.position.y;
             this.lastTime = performance.now();
+        }
+
+        // --- Atualizar Piloto Automático (se ativado) ---
+        if (this.autopilot) {
+            this.autopilot.update(this.planeState, this._isOnGround);
         }
 
         // --- Atualizar Yaw, Pitch e Roll baseando-se nos controles ---

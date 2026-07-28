@@ -377,3 +377,244 @@ canvas {
     font-family: sans-serif;
     user-select: none;
 }
+
+/* --- Mostrador de Heading (Proa do Piloto) --- */
+.heading-hud {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(12, 16, 23, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    padding: 8px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    z-index: 55;
+    pointer-events: none;
+}
+
+.heading-hud .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.heading-hud .value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #00ff87;
+    text-shadow: 0 0 10px rgba(0, 255, 135, 0.4);
+    font-family: 'Outfit', monospace, sans-serif;
+    min-width: 55px;
+    text-align: center;
+}
+
+.heading-hud .cardinal {
+    font-size: 14px;
+    font-weight: 700;
+    color: #00f2fe;
+    background: rgba(0, 242, 254, 0.15);
+    padding: 2px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 242, 254, 0.3);
+}
+
+/* --- Painel do Piloto Automático --- */
+.ap-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(12, 16, 23, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 18px 22px;
+    width: 280px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    z-index: 60;
+    color: #fff;
+    font-family: 'Outfit', sans-serif;
+    transform: scale(0.7);
+    transform-origin: top right;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.ap-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ap-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.ap-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.ap-badge.ap-off {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ap-badge.ap-on {
+    background: rgba(46, 204, 113, 0.25);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.5);
+    box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+}
+
+.ap-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ap-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ap-field label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.ap-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.ap-input-group input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #00ff87;
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.ap-input-group input:focus {
+    border-color: #00f2fe;
+}
+
+.ap-btn-sub {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.ap-btn-sub:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.ap-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.ap-btn {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.ap-btn-toggle {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.ap-btn-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.ap-btn-toggle.active {
+    background: linear-gradient(135deg, #2ecc71, #1abc9c);
+    color: #0c1015;
+    border: none;
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+}
+
+.ap-btn-level {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.4);
+}
+
+.ap-btn-level:hover {
+    background: rgba(52, 152, 219, 0.35);
+    color: #fff;
+}
+
+/* Notificação Flutuante do Piloto Automático */
+.ap-notification {
+    position: fixed;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(46, 204, 113, 0.9);
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid #2ecc71;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 200;
+}
+
+.ap-notification.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+

@@ -299,21 +299,7 @@ export default class City2Manager {
             polygonOffsetUnits: -1
         });
         
-        this.centers.forEach((center) => {
-            // Pequena via de acesso paralela e conectada à pista
-            const roadGeom = new THREE.PlaneGeometry(6, 120);
-            const road1 = new THREE.Mesh(roadGeom, mat);
-            road1.rotation.x = -Math.PI / 2;
-            road1.position.set(center.x - 28, 0.01, center.z);
-            road1.receiveShadow = true;
-            this.scene.add(road1);
-
-            const road2 = new THREE.Mesh(roadGeom, mat);
-            road2.rotation.x = -Math.PI / 2;
-            road2.position.set(center.x + 28, 0.01, center.z);
-            road2.receiveShadow = true;
-            this.scene.add(road2);
-        });
+        
     }
 }
 
