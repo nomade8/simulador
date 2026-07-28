@@ -418,13 +418,14 @@ class FlightSimulator {
         if (config.hasAirportPlaza || (position.x !== 0 || position.z !== 0)) {
             const plazaGeom = new THREE.PlaneGeometry(80, 180);
             const plazaMat = new THREE.MeshStandardMaterial({
-                color: '#696e6a',
+                color: '#7d807e',
                 roughness: 0.8,
                 metalness: 0.1,
                 polygonOffset: true,
                 polygonOffsetFactor: -1,
                 polygonOffsetUnits: -1
             });
+
             const plazaMesh = new THREE.Mesh(plazaGeom, plazaMat);
             plazaMesh.rotation.x = -Math.PI / 2;
             plazaMesh.position.y = 0.08;
@@ -1723,7 +1724,7 @@ class FlightSimulator {
         let targetAoA = 0;
         if (!this._isOnGround && speedKmh < 270) {
             const stallSeverity = (270 - speedKmh) / 270;
-            targetAoA = 0.49 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
+            targetAoA = 0.90 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.08);
 
@@ -1738,9 +1739,9 @@ class FlightSimulator {
             this.airplane.userData.updateControlSurfaces(this.planeState);
         }
 
-        // Calcular vetor de movimento
-        const moveDirection = new THREE.Vector3(0, 0, 1);
-        moveDirection.applyQuaternion(this.airplane.quaternion);
+        // Calcular vetor de movimento (usando apenas a rotação física, sem a inclinação visual do AoA)
+        const physicalEuler = new THREE.Euler(-this.planeState.pitch, this.planeState.rotation, this.planeState.roll, 'YXZ');
+        const moveDirection = new THREE.Vector3(0, 0, 1).applyEuler(physicalEuler);
 
         // A sustentação vertical depende da velocidade (em baixa velocidade o avião não ganha altitude mesmo de nariz para cima)
         if (moveDirection.y > 0) {
@@ -1756,14 +1757,20 @@ class FlightSimulator {
         }
 
         if (this.cameraMode === 'thirdPerson') {
+            if (this.airplane && !this.gameOver) {
+                this.airplane.visible = true;
+            }
             // Posição final da câmera
             const targetCameraPosition = this.airplane.position.clone().add(this.cameraOffset.clone().applyQuaternion(this.airplane.quaternion));
 
             this.camera.position.lerp(targetCameraPosition, 0.08);
             this.camera.lookAt(this.airplane.position);
         } else if (this.cameraMode === 'front') {
+            if (this.airplane) {
+                this.airplane.visible = false;
+            }
             // Posição local da primeira pessoa no avião (cockpit/frente)
-            const frontOffset = new THREE.Vector3(0, 0.1, 5.2);
+            const frontOffset = new THREE.Vector3(0, 0.4, 0.2);
             const targetCameraPosition = frontOffset.clone().applyQuaternion(this.airplane.quaternion).add(this.airplane.position);
 
             // Lerp de posição para suavizar movimentos bruscos

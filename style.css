@@ -364,7 +364,7 @@ canvas {
 
 #crosshair {
     position: absolute;
-    top: 43%; /* Um pouquinho acima do centro */
+    top: 50%; /* Um pouquinho acima do centro */
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 28px;
