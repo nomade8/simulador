@@ -4,10 +4,10 @@ import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { createPlayerPlane } from './planeFactory.js';
-import CityManager from './city.js';
-import City2Manager from './city2.js';
-import Autopilot from './autopilot.js';
+import { createPlayerPlane } from './planeFactory.js?v=1.0.3';
+import CityManager from './city.js?v=1.0.3';
+import City2Manager from './city2.js?v=1.0.3';
+import Autopilot from './autopilot.js?v=1.0.3';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
