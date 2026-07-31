@@ -1900,16 +1900,9 @@ class FlightSimulator {
                 this.createTouchdownSmoke();
             }
 
-            // Elevação da posição do centro ao cabrar no solo (para manter as rodas traseiras coladas no asfalto)
-            const pitchLiftOffset = Math.sin(Math.max(0, this.planeState.pitch)) * 0.18;
-            const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET + pitchLiftOffset;
+            const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET;
 
-            // Cálculo da sustentação aerodinâmica para descolagem do solo (Lift-Off)
-            const speedKmhForLift = this.planeState.speed * 30;
-            const liftForce = (speedKmhForLift / 160) * Math.sin(Math.max(0, this.planeState.pitch));
-            const isLiftingOff = (liftForce >= 0.16);
-
-            if (distanceToGround <= groundTouchThreshold && !isLiftingOff) {
+            if (distanceToGround <= groundTouchThreshold) {
                 if (this.airplane.position.y < minHeight) {
                     this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.25);
                 }
@@ -1934,7 +1927,7 @@ class FlightSimulator {
                 }
             }
 
-            this._isOnGround = (distanceToGround <= groundTouchThreshold && !isLiftingOff);
+            this._isOnGround = (distanceToGround <= groundTouchThreshold);
             this._currentMinHeight = minHeight;
             this._onGroundOnRunway = (this._isOnGround && onRunway && this.planeState.speed < 1);
         } else {
@@ -1968,29 +1961,18 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            // Nivelar roll no chão
-            const levelFactor = 0.08;
+            // No solo, nivelar totalmente o roll e o pitch (abaixar o nariz no asfalto)
+            const levelFactor = 0.1;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
-
-            // Permitir rotação do nariz no chão a partir de ~120 km/h (speed >= 4.0)
-            const rotationSpeedVr = 4.0;
-            if (!this.planeState.isPitchingUp || this.planeState.speed < rotationSpeedVr) {
-                this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor * 0.5);
-            } else {
-                // Ângulo de rotação máximo com trem traseiro no asfalto (Tailstrike limit: ~13.5 graus / 0.23 rad)
-                const maxGroundPitch = 0.23;
-                if (this.planeState.pitch > maxGroundPitch) {
-                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, maxGroundPitch, 0.1);
-                }
-            }
+            this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor);
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
-        }
-
-        if (this.planeState.isPitchingUp) {
-            this.planeState.pitch = Math.min(this.planeState.pitch + pitchSpeed, maxPitch);
-        } else if (this.planeState.isPitchingDown) {
-            this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, -maxPitch);
+            
+            if (this.planeState.isPitchingUp) {
+                this.planeState.pitch = Math.min(this.planeState.pitch + pitchSpeed, maxPitch);
+            } else if (this.planeState.isPitchingDown) {
+                this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, -maxPitch);
+            }
         }
 
         // Consumo de Combustível
@@ -2040,7 +2022,12 @@ class FlightSimulator {
             const stallSeverity = (270 - speedKmh) / 270;
             targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
-        this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.08);
+        
+        if (this._isOnGround) {
+            this.planeState.visualAoA = 0;
+        } else {
+            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.08);
+        }
 
         // Aplicar rotações ao objeto
         this.airplane.rotation.order = 'YXZ';
