@@ -77,7 +77,7 @@ class FlightSimulator {
             this.maxHistoryDuration = 20;
             this.isReplaying = false;
             this.replayIndex = 0;
-            this.replaySpeed = 1.0;
+            this.replaySpeed = 2.0;
             this.replayPaused = false;
             this.recordedReplayData = [];
 
@@ -1054,7 +1054,7 @@ class FlightSimulator {
         this.isReplaying = true;
         this.replayIndex = 0;
         this.replayPaused = false;
-        this.replaySpeed = 1.0;
+        this.replaySpeed = 2.0;
 
         // Ocultar modal de pouso se exibido
         if (this.landingModal) {
@@ -1069,7 +1069,7 @@ class FlightSimulator {
         }
 
         const speedBtn = document.getElementById('btnReplaySpeed');
-        if (speedBtn) speedBtn.textContent = '⚡ Vel: 1.0x';
+        if (speedBtn) speedBtn.textContent = '⚡ Vel: 2.0x';
 
         const pauseBtn = document.getElementById('btnReplayPlayPause');
         if (pauseBtn) pauseBtn.textContent = '⏸ Pausar';
@@ -1098,12 +1098,12 @@ class FlightSimulator {
     }
 
     cycleReplaySpeed() {
-        if (this.replaySpeed === 1.0) {
-            this.replaySpeed = 0.5; // Câmera Lenta
-        } else if (this.replaySpeed === 0.5) {
-            this.replaySpeed = 2.0; // Acelerado
-        } else {
+        if (this.replaySpeed === 2.0) {
             this.replaySpeed = 1.0; // Normal
+        } else if (this.replaySpeed === 1.0) {
+            this.replaySpeed = 0.5; // Câmera Lenta
+        } else {
+            this.replaySpeed = 2.0; // Acelerado (Primeira opção)
         }
 
         const speedBtn = document.getElementById('btnReplaySpeed');
@@ -1142,7 +1142,7 @@ class FlightSimulator {
 
         this.audioCtx = new AudioContextClass();
 
-        // 1. Gerar 3 segundos de Ruído Marrom (Brown Noise) para o roncador do jato
+        // 1. Gerar 3 segundos de Ruído de Jato Puro (Brown Noise)
         const bufferSize = this.audioCtx.sampleRate * 3;
         const noiseBuffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
@@ -1150,7 +1150,7 @@ class FlightSimulator {
         for (let i = 0; i < bufferSize; i++) {
             const white = Math.random() * 2 - 1;
             lastOut = (lastOut + (0.02 * white)) / 1.02;
-            output[i] = lastOut * 3.5;
+            output[i] = lastOut * 3.0;
         }
 
         // Fonte de áudio em loop
@@ -1158,36 +1158,19 @@ class FlightSimulator {
         this.noiseSource.buffer = noiseBuffer;
         this.noiseSource.loop = true;
 
-        // 2. Filtro Lowpass Principal do Jato (Grave/Ronco de exaustão)
+        // 2. Filtro Lowpass Suave (Apenas som grave/médio de ruído de jato, sem apitos agudos)
         this.jetLowpassFilter = this.audioCtx.createBiquadFilter();
         this.jetLowpassFilter.type = 'lowpass';
-        this.jetLowpassFilter.frequency.setValueAtTime(200, this.audioCtx.currentTime);
-        this.jetLowpassFilter.Q.setValueAtTime(1.5, this.audioCtx.currentTime);
+        this.jetLowpassFilter.frequency.setValueAtTime(220, this.audioCtx.currentTime);
+        this.jetLowpassFilter.Q.setValueAtTime(0.7, this.audioCtx.currentTime);
 
-        // 3. Filtro Bandpass da Turbina (Assobio agudo do compressor de jato)
-        this.jetTurbineFilter = this.audioCtx.createBiquadFilter();
-        this.jetTurbineFilter.type = 'bandpass';
-        this.jetTurbineFilter.frequency.setValueAtTime(500, this.audioCtx.currentTime);
-        this.jetTurbineFilter.Q.setValueAtTime(3.5, this.audioCtx.currentTime);
-
-        // Ganho individual da turbina
-        this.turbineGain = this.audioCtx.createGain();
-        this.turbineGain.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
-
-        // 4. Node de Ganho Geral
+        // 3. Node de Ganho Geral
         this.jetGainNode = this.audioCtx.createGain();
-        this.jetGainNode.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+        this.jetGainNode.gain.setValueAtTime(0.12, this.audioCtx.currentTime);
 
-        // Conectar conexões de áudio:
-        // noiseSource -> jetLowpassFilter -> jetGainNode -> destination
-        // noiseSource -> jetTurbineFilter -> turbineGain -> jetGainNode
+        // Conexão direta: noiseSource -> jetLowpassFilter -> jetGainNode -> destination
         this.noiseSource.connect(this.jetLowpassFilter);
         this.jetLowpassFilter.connect(this.jetGainNode);
-
-        this.noiseSource.connect(this.jetTurbineFilter);
-        this.jetTurbineFilter.connect(this.turbineGain);
-        this.turbineGain.connect(this.jetGainNode);
-
         this.jetGainNode.connect(this.audioCtx.destination);
     }
 
@@ -1217,20 +1200,14 @@ class FlightSimulator {
         const speedRatio = THREE.MathUtils.clamp((this.planeState.speed - 0) / (20 - 0), 0, 1);
         const now = this.audioCtx.currentTime;
 
-        // Frequência do filtro lowpass (ronco marrom do jato): 180Hz em idle -> 3400Hz em velocidade máxima
-        const lowpassFreq = THREE.MathUtils.lerp(180, 3300, Math.pow(speedRatio, 1.2));
+        // Frequência do ruído de jato: 220Hz em idle -> 1200Hz na aceleração máxima (somente ruído aveludado e potente)
+        const lowpassFreq = THREE.MathUtils.lerp(220, 1200, Math.pow(speedRatio, 0.9));
 
-        // Frequência da turbina (assobio de compressores): 750Hz em idle -> 2900Hz em velocidade máxima
-        const turbineFreq = THREE.MathUtils.lerp(750, 2800, speedRatio);
+        // Volume proporcional
+        const mainGain = THREE.MathUtils.lerp(0.12, 0.35, speedRatio);
 
-        // Volume total e volume da turbina
-        const mainGain = THREE.MathUtils.lerp(0.15, 0.3, speedRatio);
-        const turbineVol = THREE.MathUtils.lerp(0.1, 0.25, speedRatio);
-
-        // Atualizações suaves de parâmetros
+        // Atualização suave
         if (this.jetLowpassFilter) this.jetLowpassFilter.frequency.setTargetAtTime(lowpassFreq, now, 0.05);
-        if (this.jetTurbineFilter) this.jetTurbineFilter.frequency.setTargetAtTime(turbineFreq, now, 0.05);
-        if (this.turbineGain) this.turbineGain.gain.setTargetAtTime(turbineVol, now, 0.05);
         if (this.jetGainNode) this.jetGainNode.gain.setTargetAtTime(mainGain, now, 0.05);
     }
 
@@ -1600,6 +1577,54 @@ class FlightSimulator {
         });
     }
 
+    createTouchdownSmoke() {
+        if (!this.airplane) return;
+
+        // Posições locais das rodas do avião
+        const wheelOffsets = [
+            new THREE.Vector3(-1.5, -0.82, -0.1), // Pneu traseiro esquerdo
+            new THREE.Vector3(1.5, -0.82, -0.1),  // Pneu traseiro direito
+            new THREE.Vector3(0, -0.82, 1.4)      // Pneu dianteiro
+        ];
+
+        this.airplane.updateMatrixWorld(true);
+
+        wheelOffsets.forEach((offset) => {
+            const worldPos = offset.clone().applyMatrix4(this.airplane.matrixWorld);
+
+            // Baforada/fumaçinha rápida nos pneus (6 partículas por roda)
+            for (let i = 0; i < 6; i++) {
+                const radius = 0.10 + Math.random() * 0.10;
+                const geom = new THREE.SphereGeometry(radius, 5, 5);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0xeeeeee,
+                    transparent: true,
+                    opacity: 0.5
+                });
+                const mesh = new THREE.Mesh(geom, mat);
+
+                mesh.position.copy(worldPos).add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.25,
+                    Math.random() * 0.08,
+                    (Math.random() - 0.5) * 0.25
+                ));
+
+                this.scene.add(mesh);
+
+                this.smokeParticles.push({
+                    mesh: mesh,
+                    velocity: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.04,
+                        0.02 + Math.random() * 0.03,
+                        (Math.random() - 0.5) * 0.04
+                    ),
+                    grow: 1.04 + Math.random() * 0.02,
+                    fadeSpeed: 0.05 + Math.random() * 0.02 // Dissipa rapidamente (~0.25s - 0.3s)
+                });
+            }
+        });
+    }
+
     handleCrash(message) {
         if (this.gameOver) return;
         this.gameOver = true;
@@ -1741,7 +1766,7 @@ class FlightSimulator {
             const p = this.smokeParticles[i];
             p.mesh.position.add(p.velocity);
             p.mesh.scale.multiplyScalar(p.grow);
-            p.mesh.material.opacity -= 0.02;
+            p.mesh.material.opacity -= (p.fadeSpeed || 0.02);
             if (p.mesh.material.opacity <= 0) {
                 this.scene.remove(p.mesh);
                 p.mesh.geometry.dispose();
@@ -1803,7 +1828,7 @@ class FlightSimulator {
         if (intersects.length > 0) {
             const actualGroundY = intersects[0].point.y;
             const distanceToGround = intersects[0].distance;
-            this.planeState.altitude = distanceToGround;
+            this.planeState.altitude = this.airplane.position.y;
 
             // Calcular velocidade vertical baseada na alteração de altitude
             const now = performance.now();
@@ -1870,13 +1895,23 @@ class FlightSimulator {
                 shakeFrames = Math.min(12, Math.max(6, shakeFrames));
 
                 this.startCameraShake(shakeIntensity, shakeFrames);
+
+                // Fumaçinha rápida saindo dos pneus no momento do toque no solo
+                this.createTouchdownSmoke();
             }
 
-            const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET; // Altura exata nivelada dos pneus no asfalto
+            // Elevação da posição do centro ao cabrar no solo (para manter as rodas traseiras coladas no asfalto)
+            const pitchLiftOffset = Math.sin(Math.max(0, this.planeState.pitch)) * 0.18;
+            const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET + pitchLiftOffset;
 
-            if (distanceToGround <= groundTouchThreshold) {
+            // Cálculo da sustentação aerodinâmica para descolagem do solo (Lift-Off)
+            const speedKmhForLift = this.planeState.speed * 30;
+            const liftForce = (speedKmhForLift / 160) * Math.sin(Math.max(0, this.planeState.pitch));
+            const isLiftingOff = (liftForce >= 0.16);
+
+            if (distanceToGround <= groundTouchThreshold && !isLiftingOff) {
                 if (this.airplane.position.y < minHeight) {
-                    this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.2);
+                    this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.25);
                 }
 
                 // Se não estiver na pista de pouso e encostar no solo
@@ -1899,7 +1934,7 @@ class FlightSimulator {
                 }
             }
 
-            this._isOnGround = (distanceToGround <= groundTouchThreshold);
+            this._isOnGround = (distanceToGround <= groundTouchThreshold && !isLiftingOff);
             this._currentMinHeight = minHeight;
             this._onGroundOnRunway = (this._isOnGround && onRunway && this.planeState.speed < 1);
         } else {
@@ -1933,12 +1968,20 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            // Nivelar roll e pitch no chão
+            // Nivelar roll no chão
             const levelFactor = 0.08;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
 
-            if (!this.planeState.isPitchingUp || this.planeState.speed < 5) {
+            // Permitir rotação do nariz no chão a partir de ~120 km/h (speed >= 4.0)
+            const rotationSpeedVr = 4.0;
+            if (!this.planeState.isPitchingUp || this.planeState.speed < rotationSpeedVr) {
                 this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor * 0.5);
+            } else {
+                // Ângulo de rotação máximo com trem traseiro no asfalto (Tailstrike limit: ~13.5 graus / 0.23 rad)
+                const maxGroundPitch = 0.23;
+                if (this.planeState.pitch > maxGroundPitch) {
+                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, maxGroundPitch, 0.1);
+                }
             }
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
@@ -1995,7 +2038,7 @@ class FlightSimulator {
         let targetAoA = 0;
         if (!this._isOnGround && speedKmh < 270) {
             const stallSeverity = (270 - speedKmh) / 270;
-            targetAoA = 0.90 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
+            targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.08);
 

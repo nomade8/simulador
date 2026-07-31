@@ -322,33 +322,27 @@ export default class Autopilot {
             return;
         }
 
-        // --- 1. NIVELAMENTO SUAVE DAS ASAS (ROLL) ---
-        // Desativa comandos manuais conflitantes de curva se P.A. estiver controlando
-        planeState.isTurningLeft = false;
-        planeState.isTurningRight = false;
+        // --- 1. NIVELAMENTO SUAVE DAS ASAS (ROLL) APENAS QUANDO O PILOTO NÃO ESTÁ CURVANDO ---
+        // Se o piloto estiver usando A/D ou Setas Esquerda/Direita para virar o avião,
+        // permite a curva normalmente. Quando soltar as teclas, o P.A. nivela as asas.
+        if (!planeState.isTurningLeft && !planeState.isTurningRight) {
+            planeState.roll += (0 - planeState.roll) * this.rollLerpFactor;
+        }
 
-        // Suavemente aproxima o roll (inclinação lateral) de 0 radianos
-        planeState.roll += (0 - planeState.roll) * this.rollLerpFactor;
-
-        // --- 2. CONTROLE SUAVE DE ALTITUDE & INCLINAÇÃO (PITCH) ---
+        // --- 2. CONTROLE SUAVE DE ALTITUDE ABSOLUTA & INCLINAÇÃO (PITCH) ---
         const currentAltitudeMeters = planeState.altitude * 5;
         const altitudeError = this.targetAltitude - currentAltitudeMeters;
 
-        // Desativa comandos manuais verticais para evitar trepidação
-        planeState.isPitchingUp = false;
-        planeState.isPitchingDown = false;
+        // Se o piloto não estiver ajustando a altura manualmente (W/S ou Cima/Baixo), o P.A. mantém a altitude alvo
+        if (!planeState.isPitchingUp && !planeState.isPitchingDown) {
+            const maxClimbPitch = 0.32;   // ~18 graus
+            const maxDescentPitch = -0.25; // ~14 graus
 
-        // Calcula o pitch desejado proporcional ao erro de altitude
-        // Limita o pitch máximo de subida/descida para subidas/descidas suaves
-        const maxClimbPitch = 0.32;   // ~18 graus
-        const maxDescentPitch = -0.25; // ~14 graus
+            let targetPitch = altitudeError * 0.0012;
+            targetPitch = Math.max(maxDescentPitch, Math.min(maxClimbPitch, targetPitch));
 
-        // Fator de sensibilidade da altitude para o tom da arfagem (pitch)
-        let targetPitch = altitudeError * 0.0012;
-        targetPitch = Math.max(maxDescentPitch, Math.min(maxClimbPitch, targetPitch));
-
-        // Transição ultra suave para o pitch calculado
-        planeState.pitch += (targetPitch - planeState.pitch) * this.pitchLerpFactor;
+            planeState.pitch += (targetPitch - planeState.pitch) * this.pitchLerpFactor;
+        }
 
         // --- 3. CONTROLE SUAVE DE VELOCIDADE (SPEED) ---
         const targetSpeedInternal = this.targetSpeed / 30; // Conversão de km/h para unidade interna do jogo
