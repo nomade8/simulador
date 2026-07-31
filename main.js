@@ -2020,7 +2020,7 @@ class FlightSimulator {
         let targetAoA = 0;
         if (!this._isOnGround && speedKmh < 270) {
             const stallSeverity = (270 - speedKmh) / 270;
-            targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
+            targetAoA = 0.40 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         
         if (this._isOnGround) {
