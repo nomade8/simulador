@@ -1903,7 +1903,9 @@ class FlightSimulator {
             const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET;
 
             if (distanceToGround <= groundTouchThreshold) {
-                if (this.airplane.position.y < minHeight) {
+                // Só ajusta a posição Y se o avião estiver abaixo do nível mínimo E não estiver com o bico erguido para subir
+                const isPitchingUpOrFlying = (this.planeState.pitch > 0.05) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
+                if (this.airplane.position.y < minHeight && !isPitchingUpOrFlying) {
                     this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.25);
                 }
 
@@ -1950,6 +1952,7 @@ class FlightSimulator {
         const maxRoll = 0.65;
         const rollLerpFactor = 0.05;
 
+        let speedKmh = this.planeState.speed * 30;
         let targetRoll = 0;
 
         if (this.planeState.isTurningLeft) {
@@ -1961,10 +1964,22 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            // No solo, nivelar totalmente o roll e o pitch (abaixar o nariz no asfalto)
+            // No solo, nivelar totalmente o roll
             const levelFactor = 0.1;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
-            this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor);
+
+            // Ao tentar subir o nariz (cabrar) para decolar, dar resposta direta e rápida no manche
+            if (this.planeState.isPitchingUp) {
+                const takeoffPitchSpeed = 0.015; // Resposta bem mais rápida para rotacionar o bico no chão
+                this.planeState.pitch = Math.min(this.planeState.pitch + takeoffPitchSpeed, maxPitch);
+            } else if (this.planeState.isPitchingDown) {
+                this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, 0);
+            } else {
+                // Se não houver comando de pitch no manche, suavemente mantém o estado atual ou nivela se velocidade baixa
+                if (speedKmh < 100) {
+                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor);
+                }
+            }
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
             
@@ -2004,22 +2019,28 @@ class FlightSimulator {
             this.planeState.speed *= stepRatio;
         }
 
-        const speedKmh = this.planeState.speed * 30;
+        speedKmh = this.planeState.speed * 30;
 
-        // Fator de Eficiência da Sustentação Aerodinâmica (em < 270 km/h a sustentação para subir cai)
-        const liftEfficiency = THREE.MathUtils.clamp(speedKmh / 270, 0, 1);
+        // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
+        // Stall sem flaps: 200 km/h. Com flaps completos (flapLevel 2): 150 km/h.
+        const stallSpeedClean = 200;
+        const stallSpeedFullFlaps = 150;
+        const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
 
-        // --- Stall (Perda de sustentação por gravidade abaixo de 270 km/h) ---
-        if (speedKmh < 270 && !this._isOnGround) {
-            const stallSeverity = (270 - speedKmh) / 270;
+        // Eficiência de Sustentação Aerodinâmica
+        const liftEfficiency = THREE.MathUtils.clamp(speedKmh / currentStallSpeed, 0, 1);
+
+        // --- Stall (Perda de sustentação por gravidade se voando abaixo da velocidade de stall) ---
+        if (speedKmh < currentStallSpeed && !this._isOnGround) {
+            const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
             const stallGravity = 0.18 * stallSeverity;
             this.airplane.position.y -= stallGravity;
         }
 
         // --- Inclinação Visual (Ângulo de Ataque - AoA) por Baixa Velocidade ---
         let targetAoA = 0;
-        if (!this._isOnGround && speedKmh < 270) {
-            const stallSeverity = (270 - speedKmh) / 270;
+        if (!this._isOnGround && speedKmh < currentStallSpeed) {
+            const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
             targetAoA = 0.40 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         
@@ -2044,7 +2065,7 @@ class FlightSimulator {
         const physicalEuler = new THREE.Euler(-this.planeState.pitch, this.planeState.rotation, this.planeState.roll, 'YXZ');
         const moveDirection = new THREE.Vector3(0, 0, 1).applyEuler(physicalEuler);
 
-        // A sustentação vertical depende da velocidade (em baixa velocidade o avião não ganha altitude mesmo de nariz para cima)
+        // Sustentação vertical calculada com base na eficiência aerodinâmica
         if (moveDirection.y > 0) {
             moveDirection.y *= liftEfficiency;
         }
@@ -2052,9 +2073,12 @@ class FlightSimulator {
         const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
         this.airplane.position.add(moveVector);
 
-        // Impedir o avião de afundar no solo (apenas colisão física, sem puxar para baixo)
+        // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
         if (this._currentMinHeight !== -1000 && this.airplane.position.y < this._currentMinHeight) {
-            this.airplane.position.y = this._currentMinHeight;
+            // Se o avião tiver vetor positivo de subida ou pitch maior que zero (bico erguido), não trava no chão
+            if (moveVector.y <= 0 && this.planeState.pitch <= 0.05) {
+                this.airplane.position.y = this._currentMinHeight;
+            }
         }
 
         if (this.cameraMode === 'thirdPerson') {
