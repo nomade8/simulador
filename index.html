@@ -132,6 +132,88 @@
         <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto Automático | R: Replay | V: Câmera (Traseira / Cockpit / Órbita 360° Mouse)</p>
     </div>
 
+    <!-- Minimapa HUD no Canto Inferior Direito -->
+    <div id="minimapContainer" class="minimap-hud">
+        <canvas id="minimapCanvas" width="180" height="180"></canvas>
+        <div class="minimap-title">RADAR / PISTAS</div>
+    </div>
+
+    <!-- Tela Inicial de Entrada (Start Screen Overlay) -->
+    <div id="startScreen" class="overlay visible">
+        <div class="modal-content start-screen-modal">
+            <div class="start-header">
+                <h1>CIDADE BAT</h1>
+                <span class="sub-title">SIMULADOR DE VOO PUROR</span>
+            </div>
+
+            <div class="start-body">
+                <!-- Seção de Velocidades Ideais -->
+                <div class="info-card speeds-card">
+                    <h3>✈️ VELOCIDADES IDEAIS DE VOO</h3>
+                    <div class="speeds-grid">
+                        <div class="speed-item takeoff">
+                            <span class="speed-label">🛫 DECOLAGEM</span>
+                            <span class="speed-val">220 - 260 km/h</span>
+                            <span class="speed-desc">Acelere (X), Flaps 15° (F) e puxe o manche (S / Seta Baixo)</span>
+                        </div>
+                        <div class="speed-item landing">
+                            <span class="speed-label">🛬 POUSO</span>
+                            <span class="speed-val">200 - 230 km/h</span>
+                            <span class="speed-desc">Flaps 30° (F), Trem Baixado (G), Toque suave (< 3.0 m/s)</span>
+                        </div>
+                        <div class="speed-item stall">
+                            <span class="speed-label">⚠️ STALL (QUEDA)</span>
+                            <span class="speed-val">< 185 km/h</span>
+                            <span class="speed-desc">Evite voar abaixo desta velocidade para não cair por gravidade</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção de Controles do Avião -->
+                <div class="info-card controls-card">
+                    <h3>🎮 CONTROLES DO AVIÃO</h3>
+                    <div class="controls-grid">
+                        <div class="ctrl-item"><kbd>X</kbd> <span>Acelerar Motor</span></div>
+                        <div class="ctrl-item"><kbd>ESPAÇO</kbd> <span>Frear / Reduzir Motor</span></div>
+                        <div class="ctrl-item"><kbd>S</kbd> / <kbd>↓</kbd> <span>Subir Bico (Cabrar)</span></div>
+                        <div class="ctrl-item"><kbd>W</kbd> / <kbd>↑</kbd> <span>Baixar Bico (Picar)</span></div>
+                        <div class="ctrl-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Inclinar Asas (Roll)</span></div>
+                        <div class="ctrl-item"><kbd>F</kbd> <span>Flaps (0° → 15° → 30°)</span></div>
+                        <div class="ctrl-item"><kbd>G</kbd> <span>Trem de Pouso (Sobe/Desce)</span></div>
+                        <div class="ctrl-item"><kbd>V</kbd> <span>Alternar Câmeras</span></div>
+                        <div class="ctrl-item"><kbd>P</kbd> <span>Piloto Automático</span></div>
+                        <div class="ctrl-item"><kbd>R</kbd> <span>Replay dos Últimos 20s</span></div>
+                    </div>
+                </div>
+
+                <!-- Seção de Seleção de Modo Gráfico / Desempenho -->
+                <div class="info-card quality-card">
+                    <h3>⚙️ MODO DE DESEMPENHO E GRÁFICOS</h3>
+                    <div class="quality-options">
+                        <label class="quality-option" id="optQualityLow">
+                            <input type="radio" name="graphicsQuality" value="low">
+                            <div class="opt-content">
+                                <span class="opt-title">⚡ MODO LEVE (DESEMPENHO)</span>
+                                <span class="opt-desc">Textura otimizada e sombras desativadas. Recomendado para computadores mais fracos.</span>
+                            </div>
+                        </label>
+                        <label class="quality-option active" id="optQualityHigh">
+                            <input type="radio" name="graphicsQuality" value="high" checked>
+                            <div class="opt-content">
+                                <span class="opt-title">🌟 MODO ALTA QUALIDADE</span>
+                                <span class="opt-desc">Textura HD detalhada, sombras realistas e pós-processamento completo.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="start-footer">
+                <button id="btnStartGame" class="btn-start-simulation">🛫 INICIAR SIMULAÇÃO DE VOO</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="./main.js?v=1.0.3"></script>
 </body>
 </html>

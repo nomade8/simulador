@@ -722,3 +722,289 @@ canvas {
     letter-spacing: 0.5px;
 }
 
+/* ==========================================================================
+   TELA INICIAL DE ENTRADA (START SCREEN MODAL)
+   ========================================================================== */
+.start-screen-modal {
+    background: rgba(10, 14, 22, 0.92) !important;
+    border: 1px solid rgba(0, 242, 254, 0.3) !important;
+    backdrop-filter: blur(30px) !important;
+    -webkit-backdrop-filter: blur(30px) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 242, 254, 0.15) !important;
+    border-radius: 28px !important;
+    padding: 32px !important;
+    width: 92% !important;
+    max-width: 720px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    text-align: left !important;
+    color: #fff !important;
+    animation: modalFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Custom Scrollbar */
+.start-screen-modal::-webkit-scrollbar {
+    width: 6px;
+}
+.start-screen-modal::-webkit-scrollbar-thumb {
+    background: rgba(0, 242, 254, 0.3);
+    border-radius: 3px;
+}
+
+.start-header {
+    text-align: center;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 16px;
+}
+
+.start-header h1 {
+    font-size: 38px;
+    font-weight: 800;
+    margin: 0 0 4px 0;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #ffffff 0%, #00f2fe 50%, #00ff87 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+}
+
+.start-header .sub-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+}
+
+.start-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.info-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 18px 22px;
+}
+
+.info-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #00f2fe;
+    margin: 0 0 14px 0;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Velocidades Ideais */
+.speeds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.speed-item {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-left: 4px solid #fff;
+}
+
+.speed-item.takeoff { border-left-color: #00ff87; }
+.speed-item.landing { border-left-color: #00f2fe; }
+.speed-item.stall { border-left-color: #ff4b4b; }
+
+.speed-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.speed-val {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.speed-item.takeoff .speed-val { color: #00ff87; }
+.speed-item.landing .speed-val { color: #00f2fe; }
+.speed-item.stall .speed-val { color: #ff4b4b; }
+
+.speed-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.3;
+}
+
+/* Controles */
+.controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px 16px;
+}
+
+.ctrl-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.ctrl-item kbd {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-family: 'Outfit', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #00ff87;
+    min-width: 22px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Seletor de Modo Gráfico */
+.quality-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.quality-option {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.quality-option:hover {
+    background: rgba(0, 242, 254, 0.08);
+    border-color: rgba(0, 242, 254, 0.4);
+    transform: translateY(-2px);
+}
+
+.quality-option.active {
+    background: rgba(0, 242, 254, 0.12);
+    border: 2px solid #00f2fe;
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+}
+
+.quality-option input[type="radio"] {
+    margin-top: 4px;
+    accent-color: #00f2fe;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.opt-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.opt-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.quality-option.active .opt-title {
+    color: #00f2fe;
+}
+
+.opt-desc {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.35;
+}
+
+/* Botão Iniciar */
+.start-footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.btn-start-simulation {
+    width: 100%;
+    background: linear-gradient(135deg, #00f2fe 0%, #00ff87 100%);
+    color: #080d14;
+    border: none;
+    padding: 16px 36px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 8px 25px rgba(0, 242, 254, 0.4);
+    font-family: 'Outfit', sans-serif;
+    text-transform: uppercase;
+}
+
+.btn-start-simulation:hover {
+    transform: scale(1.02) translateY(-2px);
+    box-shadow: 0 12px 35px rgba(0, 255, 135, 0.6);
+    background: linear-gradient(135deg, #00ff87 0%, #00f2fe 100%);
+}
+
+.btn-start-simulation:active {
+    transform: scale(0.99);
+}
+
+/* ==========================================================================
+   MINIMAPA HUD (CANTO INFERIOR DIREITO)
+   ========================================================================== */
+.minimap-hud {
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(8, 13, 22, 0.82);
+    border: 1px solid rgba(0, 242, 254, 0.35);
+    border-radius: 18px;
+    padding: 10px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 242, 254, 0.15);
+    z-index: 60;
+    pointer-events: none;
+}
+
+#minimapCanvas {
+    width: 170px;
+    height: 170px;
+    border-radius: 12px;
+    background: rgba(4, 8, 15, 0.9);
+}
+
+.minimap-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #00f2fe;
+    text-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+}
+

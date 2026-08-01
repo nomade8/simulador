@@ -81,11 +81,11 @@ class FlightSimulator {
             this.replayPaused = false;
             this.recordedReplayData = [];
 
-            // Estado de voo adicional para pouso
-            this.lastAltitude = 400;
+            // Estado de voo adicional para pouso (Inicia pousado na pista principal da cidade)
+            this.lastAltitude = 0.51;
             this.lastTime = performance.now();
             this.currentVerticalSpeed = 0;
-            this.wasInAir = true;
+            this.wasInAir = false;
             this.touchdownData = null;
             this.landingReportDisplayed = false;
             
@@ -102,6 +102,11 @@ class FlightSimulator {
                 };
                 this.preloadGpwsVoice();
             }
+
+            // Configurações de Qualidade de Desempenho
+            this.graphicsQuality = 'high';
+            this.usePostProcessing = true;
+            this.minimapCanvas = document.getElementById('minimapCanvas');
 
             // Criar Cena
             this.scene = new THREE.Scene();
@@ -142,7 +147,7 @@ class FlightSimulator {
             // Criar Terreno, Pista, Vegetação, Nuvens e Cidade
             this.createScene();
 
-            // Criar Avião
+            // Criar Avião (Pousado na pista da cidade)
             this.createPlane();
             this.cameraOffset = new THREE.Vector3(0, 1.3, -1);
 
@@ -157,21 +162,22 @@ class FlightSimulator {
             this.controls.enableRotate = false;
             this.controls.enabled = false;
 
-            // Configurar Controles de Voo
+            // Configurar Controles de Voo e Tela Inicial
             this.setupControls();
             this.setupEngineAudio();
+            this.setupStartScreen();
 
-            // Variáveis de Estado de Voo
+            // Variáveis de Estado de Voo (Inicia parado no solo com trem baixado)
             this.planeState = {
-                speed: 14,
-                altitude: 400,
+                speed: 0,
+                altitude: 0.51,
                 fuel: 100,
                 rotation: 0, // Yaw
                 pitch: 0,    // Pitch
                 roll: 0,     // Roll
                 flapTarget: 0,
                 flapAngle: 0,
-                gearRetracted: false,
+                gearRetracted: true, // Trem de Pouso BAIXADO
                 isTurningLeft: false,
                 isTurningRight: false,
                 isPitchingUp: false,
@@ -279,7 +285,7 @@ class FlightSimulator {
         return new THREE.CanvasTexture(canvas);
     }
 
-    createScene() {
+    createProceduralTerrain() {
         // Terreno procedural com montanhas, serras e vales (4000x4000 com 90x90 segmentos)
         const size = 4000;
         const segments = 90;
@@ -339,12 +345,30 @@ class FlightSimulator {
         groundGeometry.computeVertexNormals();
         groundGeometry.boundsTree = new MeshBVH(groundGeometry);
 
-        // Textura procedural ultra-detalhada do terreno (1024x1024)
+        // Gerar texturas em Alta Qualidade (1024x1024) e Modo Leve (256x256)
+        this.highResTerrainTexture = this.generateTerrainTexture(1024);
+        this.lowResTerrainTexture = this.generateTerrainTexture(256);
+
+        this.groundMaterial = new THREE.MeshStandardMaterial({
+            map: this.highResTerrainTexture,
+            color: '#ffffff',
+            roughness: 0.9,
+            metalness: 0.05,
+            flatShading: false
+        });
+
+        this.ground = new THREE.Mesh(groundGeometry, this.groundMaterial);
+        this.ground.rotation.x = -Math.PI / 2;
+        this.ground.receiveShadow = true;
+        this.scene.add(this.ground);
+    }
+
+    generateTerrainTexture(size) {
         const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 1024;
+        canvas.width = size;
+        canvas.height = size;
         const ctx = canvas.getContext('2d');
-        const imageData = ctx.createImageData(1024, 1024);
+        const imageData = ctx.createImageData(size, size);
 
         function textureNoise(x, y) {
             const n = Math.sin(x * 0.015) * Math.cos(y * 0.015) +
@@ -353,26 +377,26 @@ class FlightSimulator {
             return (n + 1) / 2;
         }
 
-        for (let x = 0; x < 1024; x++) {
-            for (let y = 0; y < 1024; y++) {
-                const index = (y * 1024 + x) * 4;
-                const nVal = textureNoise(x, y);
-                const nVal2 = textureNoise(x * 2.8, y * 2.8);
+        const scale = 1024 / size;
+        for (let x = 0; x < size; x++) {
+            for (let y = 0; y < size; y++) {
+                const index = (y * size + x) * 4;
+                const wx = x * scale;
+                const wy = y * scale;
+                const nVal = textureNoise(wx, wy);
+                const nVal2 = textureNoise(wx * 2.8, wy * 2.8);
 
-                // Tons de verde grama, terra fértil e rocha nas serras
                 const grassR = 24, grassG = 95, grassB = 28;
                 const mossR = 40, mossG = 115, mossB = 32;
                 const earthR = 85, earthG = 75, earthB = 45;
 
                 let r, g, b;
                 if (nVal > 0.65) {
-                    // Mistura terra/rocha
                     const factor = (nVal - 0.65) / 0.35;
                     r = grassR + (earthR - grassR) * factor;
                     g = grassG + (earthG - grassG) * factor;
                     b = grassB + (earthB - grassB) * factor;
                 } else {
-                    // Mistura de tons de gramado e musgo
                     r = grassR + (mossR - grassR) * nVal2;
                     g = grassG + (mossG - grassG) * nVal2;
                     b = grassB + (mossB - grassB) * nVal2;
@@ -392,21 +416,17 @@ class FlightSimulator {
         terrainTexture.wrapT = THREE.RepeatWrapping;
         terrainTexture.repeat.set(16, 16);
 
-        const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
-        terrainTexture.anisotropy = maxAnisotropy;
+        if (size > 500) {
+            const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+            terrainTexture.anisotropy = maxAnisotropy;
+        } else {
+            terrainTexture.anisotropy = 1;
+        }
+        return terrainTexture;
+    }
 
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            map: terrainTexture,
-            color: '#ffffff',
-            roughness: 0.9,
-            metalness: 0.05,
-            flatShading: false
-        });
-
-        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = -Math.PI / 2;
-        this.ground.receiveShadow = true;
-        this.scene.add(this.ground);
+    createScene() {
+        this.createProceduralTerrain();
 
         // Criar 4 Pistas de Pouso Principais
         this.runways = [];
@@ -832,7 +852,8 @@ class FlightSimulator {
 
     createPlane() {
         this.airplane = createPlayerPlane(this.scene);
-        this.airplane.position.set(0, 100, -400);
+        this.airplane.position.set(0, 0.51, -50);
+        this.airplane.rotation.set(0, 0, 0);
     }
 
     createSkyGradient() {
@@ -1017,6 +1038,193 @@ class FlightSimulator {
                 this.orbitDistance = THREE.MathUtils.clamp(this.orbitDistance, 4, 50);
             }
         }, { passive: true });
+    }
+
+    setupStartScreen() {
+        this.startScreen = document.getElementById('startScreen');
+        this.btnStartGame = document.getElementById('btnStartGame');
+        this.optQualityLow = document.getElementById('optQualityLow');
+        this.optQualityHigh = document.getElementById('optQualityHigh');
+
+        if (this.optQualityLow && this.optQualityHigh) {
+            this.optQualityLow.addEventListener('click', () => {
+                const radio = this.optQualityLow.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+                this.optQualityLow.classList.add('active');
+                this.optQualityHigh.classList.remove('active');
+            });
+
+            this.optQualityHigh.addEventListener('click', () => {
+                const radio = this.optQualityHigh.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+                this.optQualityHigh.classList.add('active');
+                this.optQualityLow.classList.remove('active');
+            });
+        }
+
+        if (this.btnStartGame) {
+            this.btnStartGame.addEventListener('click', () => {
+                const selectedRadio = document.querySelector('input[name="graphicsQuality"]:checked');
+                const qualityMode = selectedRadio ? selectedRadio.value : 'high';
+                this.setQualityMode(qualityMode);
+
+                if (this.startScreen) {
+                    this.startScreen.classList.remove('visible');
+                }
+                this.startEngineAudio();
+            });
+        }
+    }
+
+    setQualityMode(mode) {
+        this.graphicsQuality = mode;
+        if (mode === 'low') {
+            this.renderer.shadowMap.enabled = false;
+            this.renderer.setPixelRatio(1.0);
+            this.usePostProcessing = false;
+            if (this.groundMaterial && this.lowResTerrainTexture) {
+                this.groundMaterial.map = this.lowResTerrainTexture;
+                this.groundMaterial.needsUpdate = true;
+            }
+        } else {
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.BasicShadowMap;
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.usePostProcessing = true;
+            if (this.groundMaterial && this.highResTerrainTexture) {
+                this.groundMaterial.map = this.highResTerrainTexture;
+                this.groundMaterial.needsUpdate = true;
+            }
+        }
+    }
+
+    updateMinimap() {
+        if (!this.minimapCanvas || !this.airplane) return;
+        const ctx = this.minimapCanvas.getContext('2d');
+        const w = this.minimapCanvas.width;
+        const h = this.minimapCanvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // 1. Fundo do Radar
+        ctx.fillStyle = 'rgba(4, 8, 15, 0.92)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, cx - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Anéis de Alcance (1km e 2km) e Linhas de Grade
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.2)';
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, (cx - 2) * 0.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, cx - 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx, 4);
+        ctx.lineTo(cx, h - 4);
+        ctx.moveTo(4, cy);
+        ctx.lineTo(w - 4, cy);
+        ctx.stroke();
+
+        // Clipping circular para elementos internos
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, cx - 4, 0, Math.PI * 2);
+        ctx.clip();
+
+        const planePos = this.airplane.position;
+        const theta = this.planeState ? (this.planeState.rotation || 0) : 0;
+        const scale = (cx - 4) / 2000;
+
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+
+        // 3. Desenhar Pistas (Runways) orientadas em relação ao avião (Track-Up: FRENTE = TOPO DO MINIMAPA)
+        if (this.runways && this.runways.length > 0) {
+            for (let i = 0; i < this.runways.length; i++) {
+                const r = this.runways[i];
+                const vx = r.position.x - planePos.x;
+                const vz = r.position.z - planePos.z;
+
+                // Projeção nos eixos local do avião (Forward = FRENTE, Right = DIREITA)
+                const forwardDist = vx * sinT + vz * cosT;
+                const rightDist = -vx * cosT + vz * sinT;
+
+                const rx = cx + rightDist * scale;
+                const ry = cy - forwardDist * scale;
+
+                ctx.save();
+                ctx.translate(rx, ry);
+                ctx.rotate((r.rotationY || 0) - theta);
+
+                const rw = Math.max(4, (r.width || 8.5) * scale * 3);
+                const rl = Math.max(12, (r.length || 140) * scale);
+
+                if (i === 0) {
+                    ctx.fillStyle = '#00ff87';
+                    ctx.shadowColor = '#00ff87';
+                    ctx.shadowBlur = 8;
+                } else {
+                    ctx.fillStyle = '#00f2fe';
+                    ctx.shadowColor = '#00f2fe';
+                    ctx.shadowBlur = 4;
+                }
+
+                ctx.fillRect(-rw / 2, -rl / 2, rw, rl);
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(-rw / 2, -rl / 2, rw, rl);
+                ctx.restore();
+            }
+        }
+
+        ctx.restore(); // Fim do clipping circular
+
+        // 4. Bússola Dinâmica nos Anéis (N, S, L, O girando conforme a proa)
+        const R = cx - 12;
+
+        ctx.font = 'bold 10px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Norte (N) - Vermelho
+        ctx.fillStyle = '#ff4b4b';
+        ctx.fillText('N', cx - R * sinT, cy + R * cosT);
+
+        // Sul (S), Leste (L), Oeste (O) - Ciano
+        ctx.fillStyle = '#00f2fe';
+        ctx.fillText('S', cx + R * sinT, cy - R * cosT);
+        ctx.fillText('L', cx - R * cosT, cy - R * sinT);
+        ctx.fillText('O', cx + R * cosT, cy + R * sinT);
+
+        // 5. Ícone do Avião do Jogador no Centro (Sempre apontando para FRENTE / CIMA)
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#cedb0fff';
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#487575ff';
+        ctx.shadowBlur = 10;
+
+        ctx.beginPath();
+        ctx.moveTo(0, -10); // Nariz apontado para cima (Frente)
+        ctx.lineTo(7, 8);   // Asa Direita
+        ctx.lineTo(0, 4);   // Centro Cauda
+        ctx.lineTo(-7, 8);  // Asa Esquerda
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
     }
 
     toggleCameraMode() {
@@ -1290,7 +1498,10 @@ class FlightSimulator {
         const hudAlt = distanceToGround * 5;
         const callouts = [50, 40, 30, 20, 10];
 
-        if (this.wasInAir && !this._isOnGround) {
+        // Só dispara chamadas sonoras de altitude GPWS se o avião estiver DESCENDO em aproximação de pouso (sink rate > 0.3 m/s)
+        const isDescending = this.currentVerticalSpeed > 0.3;
+
+        if (this.wasInAir && !this._isOnGround && isDescending) {
             for (let target of callouts) {
                 if (hudAlt <= target && !this.spokenCallouts[target]) {
                     this.spokenCallouts[target] = true;
@@ -1682,7 +1893,7 @@ class FlightSimulator {
                         pitch: THREE.MathUtils.lerp(frameA.pitch, frameB.pitch, alpha),
                         roll: THREE.MathUtils.lerp(frameA.roll, frameB.roll, alpha),
                         flapAngle: frameA.flapTarget || 0,
-                        gearRetracted: frameA.gearRetracted
+                        gearRetracted: frameA.gearRetracted !== undefined ? frameA.gearRetracted : true
                     });
                 }
 
@@ -1919,7 +2130,7 @@ class FlightSimulator {
                             this.updateHealthBar();
                             this.createExplosion(this.airplane.position.clone(), 0.5);
                         }
-                        this.planeState.speed = Math.max(0, this.planeState.speed - 0.08); // Freia
+                        this.planeState.speed = Math.max(0, this.planeState.speed - 0.07); // Freia
                         
                         if (this.playerHealth <= 0) {
                             this.handleCrash("Você colidiu contra o terreno irregular!");
@@ -2041,7 +2252,7 @@ class FlightSimulator {
         let targetAoA = 0;
         if (!this._isOnGround && speedKmh < currentStallSpeed) {
             const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
-            targetAoA = 0.60 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
+            targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         
         if (this._isOnGround) {
@@ -2070,7 +2281,7 @@ class FlightSimulator {
             moveDirection.y *= liftEfficiency;
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.034);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
@@ -2184,7 +2395,14 @@ class FlightSimulator {
         }
 
         // Renderizar cena
-        this.composer.render();
+        if (this.usePostProcessing && this.composer) {
+            this.composer.render();
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
+
+        // Atualizar Minimapa de Pistas
+        this.updateMinimap();
 
         // Próximo frame
         requestAnimationFrame(() => this.animate());

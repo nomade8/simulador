@@ -466,6 +466,8 @@ export function createPlayerPlane(scene, fuselageColor = '#0e036b') {
     airplane.add(rightGearPivot);
 
     // --- ATUALIZAÇÃO DINÂMICA DAS SUPERFÍCIES DE CONTROLE E TREM DE POUSO ---
+    let currentGearFoldProgress = 0; // 0 = Baixado, 1 = Recolhido (inicia baixado no solo)
+
     airplane.userData = {
         leftFlapPivot,
         rightFlapPivot,
@@ -479,20 +481,20 @@ export function createPlayerPlane(scene, fuselageColor = '#0e036b') {
         updateControlSurfaces(state) {
             const lerpSpeed = 0.2;
 
-            // Animação das Rodas / Trem de Pouso (Recolhimento para o centro com tecla G)
-            if (state.gearRetracted === undefined) state.gearRetracted = false;
-            if (state.gearFoldProgress === undefined) state.gearFoldProgress = 1; // 0 = Baixado, 1 = Recolhido
-
+            // Animação das Rodas / Trem de Pouso (gearRetracted: true = BAIXADO, false = RECOLHIDO)
+            if (state.gearRetracted === undefined) state.gearRetracted = true;
             const targetGearProgress = state.gearRetracted ? 0 : 1;
-            state.gearFoldProgress = THREE.MathUtils.lerp(state.gearFoldProgress, targetGearProgress, 0.02);
+
+            currentGearFoldProgress = THREE.MathUtils.lerp(currentGearFoldProgress, targetGearProgress, 0.02);
+            state.gearFoldProgress = currentGearFoldProgress;
 
             // Rodas principais dobram para o centro (roll em relação ao eixo Z da asa)
-            const mainGearAngle = state.gearFoldProgress * (Math.PI / 2);
+            const mainGearAngle = currentGearFoldProgress * (Math.PI / 2);
             leftGearPivot.rotation.z = -mainGearAngle;  // Dobra para a direita (centro da fuselagem)
             rightGearPivot.rotation.z = mainGearAngle;  // Dobra para a esquerda (centro da fuselagem)
 
             // Roda da frente recolhe para trás
-            const noseGearAngle = state.gearFoldProgress * (Math.PI / 2);
+            const noseGearAngle = currentGearFoldProgress * (Math.PI / 2);
             noseGearPivot.rotation.x = noseGearAngle;
 
             // 1. Ailerons (Rolagem / Curva)
