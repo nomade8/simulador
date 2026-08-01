@@ -874,10 +874,10 @@ class FlightSimulator {
             flapsEl.textContent = flapsVal;
         }
 
-        const gearEl = document.getElementById('gearStatus');
+         const gearEl = document.getElementById('gearStatus');
         if (gearEl) {
-            gearEl.textContent = this.planeState.gearRetracted ? "RECOLHIDO" : "BAIXADO";
-            gearEl.style.color = this.planeState.gearRetracted ? "#ff5252" : "#4caf50";
+            gearEl.textContent = this.planeState.gearRetracted ? "BAIXADO" : "RECOLHIDO";
+            gearEl.style.color = this.planeState.gearRetracted ? "#4caf50" : "#ff5252";
         }
 
         const crosshair = document.getElementById('crosshair');
@@ -1597,7 +1597,7 @@ class FlightSimulator {
                 const radius = 0.10 + Math.random() * 0.10;
                 const geom = new THREE.SphereGeometry(radius, 5, 5);
                 const mat = new THREE.MeshBasicMaterial({
-                    color: 0xeeeeee,
+                    color: '#88898a',
                     transparent: true,
                     opacity: 0.5
                 });
@@ -1870,7 +1870,7 @@ class FlightSimulator {
             const groundTouchThreshold = 0.38; // Limiar de tolerância para contato das rodas
 
             // Detectar Pouso Sem Trem de Pouso (Explosão)
-            if (distanceToGround <= groundTouchThreshold && this.planeState.gearRetracted) {
+            if (distanceToGround <= groundTouchThreshold && !this.planeState.gearRetracted) {
                 this.handleCrash("pouso sem trem de pouso");
                 return;
             }
@@ -1887,12 +1887,12 @@ class FlightSimulator {
                     verticalSpeed: vsAtTouchdown
                 };
 
-                // Tremor de câmera proporcional ao impacto do pouso (rápido e suave)
-                let shakeIntensity = 0.01 + (vsAtTouchdown / 25) * 0.03; 
-                shakeIntensity = Math.min(0.04, Math.max(0.01, shakeIntensity));
+                // Tremor de câmera proporcional ao impacto do pouso
+                let shakeIntensity = 0.02 + (vsAtTouchdown / 25) * 0.02; 
+                shakeIntensity = Math.min(0.1, Math.max(0.01, shakeIntensity));
                 
-                let shakeFrames = Math.round(6 + (vsAtTouchdown / 25) * 6); // Apenas 6 a 12 frames (~0.1 a 0.2s)
-                shakeFrames = Math.min(12, Math.max(6, shakeFrames));
+                let shakeFrames = Math.round(10 + (vsAtTouchdown / 25) * 10); // ~0.3s a 0.6s de tremor
+                shakeFrames = Math.min(36, Math.max(10, shakeFrames));
 
                 this.startCameraShake(shakeIntensity, shakeFrames);
 
@@ -1904,7 +1904,7 @@ class FlightSimulator {
 
             if (distanceToGround <= groundTouchThreshold) {
                 // Só ajusta a posição Y se o avião estiver abaixo do nível mínimo E não estiver com o bico erguido para subir
-                const isPitchingUpOrFlying = (this.planeState.pitch > 0.05) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
+                const isPitchingUpOrFlying = (this.planeState.pitch > 0.15) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
                 if (this.airplane.position.y < minHeight && !isPitchingUpOrFlying) {
                     this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.25);
                 }
@@ -1976,7 +1976,7 @@ class FlightSimulator {
                 this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, 0);
             } else {
                 // Se não houver comando de pitch no manche, suavemente mantém o estado atual ou nivela se velocidade baixa
-                if (speedKmh < 100) {
+                if (speedKmh < 140) {
                     this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor);
                 }
             }
@@ -2022,9 +2022,9 @@ class FlightSimulator {
         speedKmh = this.planeState.speed * 30;
 
         // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
-        // Stall sem flaps: 200 km/h. Com flaps completos (flapLevel 2): 150 km/h.
+        // Stall sem flaps: 200 km/h. Com flaps completos (flapLevel 2): 185 km/h.
         const stallSpeedClean = 200;
-        const stallSpeedFullFlaps = 150;
+        const stallSpeedFullFlaps = 185;
         const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
 
         // Eficiência de Sustentação Aerodinâmica
@@ -2041,7 +2041,7 @@ class FlightSimulator {
         let targetAoA = 0;
         if (!this._isOnGround && speedKmh < currentStallSpeed) {
             const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
-            targetAoA = 0.40 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
+            targetAoA = 0.60 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
         
         if (this._isOnGround) {
@@ -2070,7 +2070,7 @@ class FlightSimulator {
             moveDirection.y *= liftEfficiency;
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.034);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
@@ -2128,13 +2128,13 @@ class FlightSimulator {
             const shakeAmount = this.cameraShake.intensity * fade;
 
             const step = this.cameraShake.totalFrames - this.cameraShake.frames;
-            const freq = step * 0.5;
+            const freq = step * 0.2;
 
             if (this.cameraMode === 'thirdPerson' || this.cameraMode === 'orbit') {
-                // Em terceira pessoa / órbita: solavanco muito sutil e sem trancos aleatórios
-                const offsetX = Math.sin(freq) * shakeAmount * 0.15;
-                const offsetY = Math.cos(freq * 1.3) * shakeAmount * 0.25;
-                const offsetZ = Math.sin(freq * 0.8) * shakeAmount * 0.1;
+                // Em terceira pessoa / órbita: tremor perceptível com variação aleatória suave
+                const offsetX = (Math.sin(freq * 1.5) * 0.6 + (Math.random() - 0.5) * 0.4) * shakeAmount * 1.5;
+                const offsetY = (Math.cos(freq * 1.8) * 0.8 + (Math.random() - 0.5) * 0.4) * shakeAmount * 2.0;
+                const offsetZ = (Math.sin(freq * 1.2) * 0.5) * shakeAmount * 1.2;
                 this.camera.position.add(new THREE.Vector3(offsetX, offsetY, offsetZ));
             } else if (this.cameraMode === 'front') {
                 // Em primeira pessoa: tranco de impacto realista no cockpit (posição + rotação da cabeça do piloto)

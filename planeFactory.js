@@ -481,10 +481,10 @@ export function createPlayerPlane(scene, fuselageColor = '#0e036b') {
 
             // Animação das Rodas / Trem de Pouso (Recolhimento para o centro com tecla G)
             if (state.gearRetracted === undefined) state.gearRetracted = false;
-            if (state.gearFoldProgress === undefined) state.gearFoldProgress = 0; // 0 = Baixado, 1 = Recolhido
+            if (state.gearFoldProgress === undefined) state.gearFoldProgress = 1; // 0 = Baixado, 1 = Recolhido
 
-            const targetGearProgress = state.gearRetracted ? 1 : 0;
-            state.gearFoldProgress = THREE.MathUtils.lerp(state.gearFoldProgress, targetGearProgress, 0.08);
+            const targetGearProgress = state.gearRetracted ? 0 : 1;
+            state.gearFoldProgress = THREE.MathUtils.lerp(state.gearFoldProgress, targetGearProgress, 0.02);
 
             // Rodas principais dobram para o centro (roll em relação ao eixo Z da asa)
             const mainGearAngle = state.gearFoldProgress * (Math.PI / 2);
