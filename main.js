@@ -19,14 +19,14 @@ class FlightSimulator {
             this.gameOver = false;
             this.gameOverDisplayed = false;
             this.playerHealth = 100;
-            
+
             // Elementos DOM
             this.healthBar = document.getElementById('healthBar');
             this.healthElement = document.getElementById('health');
             this.gameOverScreen = document.getElementById('gameOverScreen');
             this.gameOverTitle = document.getElementById('gameOverTitle');
             this.gameOverMessage = document.getElementById('gameOverMessage');
-            
+
             // Relatório de Pouso DOM
             this.landingModal = document.getElementById('landingModal');
             this.landingGrade = document.getElementById('landingGrade');
@@ -37,7 +37,7 @@ class FlightSimulator {
             this.forceValue = document.getElementById('forceValue');
             this.forceScoreBar = document.getElementById('forceScoreBar');
             this.forceDesc = document.getElementById('forceDesc');
-            
+
             // Ouvintes de evento do modal
             const btnContinue = document.getElementById('btnContinue');
             if (btnContinue) {
@@ -88,7 +88,7 @@ class FlightSimulator {
             this.wasInAir = false;
             this.touchdownData = null;
             this.landingReportDisplayed = false;
-            
+
             this.engineAudioStarted = false;
             this.landingStopStartTime = null;
             this.landingActionTriggered = false;
@@ -270,7 +270,7 @@ class FlightSimulator {
         canvas.width = 256;
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
-        
+
         // Círculo com gradiente radial para simular brilho/halo solar
         const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
         gradient.addColorStop(0, 'rgba(255, 255, 235, 1.0)');
@@ -278,10 +278,10 @@ class FlightSimulator {
         gradient.addColorStop(0.35, 'rgba(255, 195, 90, 0.3)');
         gradient.addColorStop(0.65, 'rgba(255, 175, 75, 0.08)');
         gradient.addColorStop(1.0, 'rgba(255, 175, 75, 0.0)');
-        
+
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 256, 256);
-        
+
         return new THREE.CanvasTexture(canvas);
     }
 
@@ -436,9 +436,9 @@ class FlightSimulator {
         this.createRunway({ position: new THREE.Vector3(-700, 0, 400), width: 8.5, length: 140 });
 
         // Criar 4 Pistas Pequenas (Aeródromos) com a mesma marcação completa, soleiras e iluminação
-        this.createRunway({ position: new THREE.Vector3(1000, 0, -800), width: 5.5, length: 90, rotationY: Math.PI  });
+        this.createRunway({ position: new THREE.Vector3(1000, 0, -800), width: 5.5, length: 90, rotationY: Math.PI });
         this.createRunway({ position: new THREE.Vector3(-1100, 0, 900), width: 5.5, length: 90, rotationY: (2 * Math.PI) / 2 });
-        this.createRunway({ position: new THREE.Vector3(-400, 0, -1200), width: 5.5, length: 90, rotationY: Math.PI  });
+        this.createRunway({ position: new THREE.Vector3(-400, 0, -1200), width: 5.5, length: 90, rotationY: Math.PI });
         this.createRunway({ position: new THREE.Vector3(1200, 0, 500), width: 5.5, length: 90, rotationY: (5 * Math.PI) });
 
         // Vegetação e Parques Eólicos nas montanhas
@@ -793,7 +793,7 @@ class FlightSimulator {
                 const bladeGeom = new THREE.BoxGeometry(0.4, 14, 0.1);
                 const bladeMesh = new THREE.Mesh(bladeGeom, bladeMat);
                 bladeMesh.position.y = 7;
-                
+
                 const bladeHolder = new THREE.Group();
                 bladeHolder.rotation.z = (b * Math.PI * 2) / 3;
                 bladeHolder.add(bladeMesh);
@@ -895,7 +895,7 @@ class FlightSimulator {
             flapsEl.textContent = flapsVal;
         }
 
-         const gearEl = document.getElementById('gearStatus');
+        const gearEl = document.getElementById('gearStatus');
         if (gearEl) {
             gearEl.textContent = this.planeState.gearRetracted ? "BAIXADO" : "RECOLHIDO";
             gearEl.style.color = this.planeState.gearRetracted ? "#4caf50" : "#ff5252";
@@ -923,7 +923,7 @@ class FlightSimulator {
         const cardValEl = document.getElementById('cardinalValue');
         if (hdgValEl) hdgValEl.textContent = `${headingDeg.toString().padStart(3, '0')}°`;
         if (cardValEl) cardValEl.textContent = cardinal;
-        
+
         this.updateHealthBar();
     }
 
@@ -1328,7 +1328,7 @@ class FlightSimulator {
 
         const maxSpeed = 20;
         const minSpeed = 0;
-        const speedChangeAmount = 0.08;
+        const speedChangeAmount = 0.04;
 
         if (keyStates.x) {
             this.planeState.speed = Math.min(this.planeState.speed + speedChangeAmount, maxSpeed);
@@ -1474,7 +1474,7 @@ class FlightSimulator {
     speakCallout(text) {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
-            
+
             // Re-garantir que a voz robótica foi carregada se a lista de vozes mudou
             if (!this.gpwsVoice) {
                 this.preloadGpwsVoice();
@@ -1521,7 +1521,7 @@ class FlightSimulator {
     playExplosionSound() {
         const audio = new Audio('./explosion boa.mp3');
         audio.volume = 0.6;
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
     }
 
     startCameraShake(intensity = 0.1, frames = 20) {
@@ -1591,12 +1591,12 @@ class FlightSimulator {
 
     showLandingModal() {
         if (!this.touchdownData || this.landingReportDisplayed) return;
-        
+
         this.landingReportDisplayed = true;
         this.stopEngineAudio();
-        
+
         const { deviation, verticalSpeed } = this.touchdownData;
-        
+
         // 1. Cálculo do Score de Alinhamento / Centralidade (Largura máxima antes da borda é 3.5m)
         const centralityScore = Math.max(0, 100 - (deviation / 3.5) * 100);
         let centralityRating = "Perfeita (No Centro)";
@@ -1607,7 +1607,7 @@ class FlightSimulator {
         } else if (deviation > 0.5) {
             centralityRating = "Boa (Perto do Centro)";
         }
-        
+
         // 2. Cálculo do Score de Suavidade do Toque (Velocidade Vertical)
         let forceScore = 100;
         let forceRating = "Manteiga (Extremamente Suave)";
@@ -1621,10 +1621,10 @@ class FlightSimulator {
                 forceRating = "Suave";
             }
         }
-        
+
         // Pontuação Total baseada em Suavidade e Alinhamento (máx 1000)
         const totalScore = Math.round((centralityScore + forceScore) / 2 * 10);
-        
+
         // Determinar Nota e Cor
         let grade = "F";
         let gradeClass = "red";
@@ -1647,7 +1647,7 @@ class FlightSimulator {
             grade = "F";
             gradeClass = "red";
         }
-        
+
         // Atualizar DOM do Modal
         if (this.landingGrade) {
             this.landingGrade.textContent = grade;
@@ -1656,22 +1656,22 @@ class FlightSimulator {
         if (this.landingTotalScore) {
             this.landingTotalScore.textContent = `Pontuação: ${totalScore} / 1000`;
         }
-        
+
         if (this.centralityValue) this.centralityValue.textContent = `${deviation.toFixed(2)}m`;
         if (this.centralityScoreBar) this.centralityScoreBar.style.width = `0%`;
         if (this.centralityDesc) this.centralityDesc.textContent = `${centralityRating} (${Math.round(centralityScore)}/100)`;
-        
+
         if (this.forceValue) this.forceValue.textContent = `${verticalSpeed.toFixed(2)} m/s`;
         if (this.forceScoreBar) this.forceScoreBar.style.width = `0%`;
         if (this.forceDesc) this.forceDesc.textContent = `${forceRating} (${Math.round(forceScore)}/100)`;
-        
+
         // Exibir o modal
         if (this.landingModal) {
             this.landingModal.style.display = 'flex';
             // Pequeno delay para a animação do CSS e preenchimento das barras
             setTimeout(() => {
                 this.landingModal.classList.add('visible');
-                
+
                 // Animar barras de progresso
                 setTimeout(() => {
                     if (this.centralityScoreBar) this.centralityScoreBar.style.width = `${centralityScore}%`;
@@ -1689,14 +1689,14 @@ class FlightSimulator {
         this.landingReportDisplayed = false;
         this.touchdownData = null;
         this.wasInAir = false; // Permite re-armar quando subir acima de 4m de altitude
-        
+
         if (this.landingModal) {
             this.landingModal.classList.remove('visible');
             setTimeout(() => {
                 this.landingModal.style.display = 'none';
             }, 500);
         }
-        
+
         // Reiniciar áudio do motor ao continuar o voo
         if (this.planeState.fuel > 0) {
             this.startEngineAudio();
@@ -1839,15 +1839,15 @@ class FlightSimulator {
     handleCrash(message) {
         if (this.gameOver) return;
         this.gameOver = true;
-        
+
         // Criar grande explosão
         this.createExplosion(this.airplane.position.clone(), 3.0);
         this.playExplosionSound();
         this.stopEngineAudio();
-        
+
         // Esconder o avião
         this.airplane.visible = false;
-        
+
         // Mostrar tela de fim de jogo
         if (this.gameOverScreen) {
             this.gameOverTitle.textContent = "SIMULAÇÃO ENCERRADA";
@@ -2000,7 +2000,7 @@ class FlightSimulator {
         playerBoundingBox.expandByScalar(0.08);
 
         // --- Detecção de Colisões ---
-        
+
         // 1. Colisão com Edifícios da Cidade
         let cityBuildingHit = this.cityManager.checkPlaneCollision(playerBoundingBox);
         let activeManager = this.cityManager;
@@ -2013,7 +2013,7 @@ class FlightSimulator {
             this.playerHealth -= 40;
             this.updateHealthBar();
             console.log(`Colisão com edifício: ${cityBuildingHit.type}`);
-            
+
             // Explosão menor no prédio e sua destruição
             this.createExplosion(this.airplane.position.clone(), 1.5);
             this.playExplosionSound();
@@ -2099,10 +2099,10 @@ class FlightSimulator {
                 };
 
                 // Tremor de câmera proporcional ao impacto do pouso
-                let shakeIntensity = 0.02 + (vsAtTouchdown / 25) * 0.02; 
+                let shakeIntensity = 0.01 + (vsAtTouchdown / 25) * 0.01;
                 shakeIntensity = Math.min(0.1, Math.max(0.01, shakeIntensity));
-                
-                let shakeFrames = Math.round(10 + (vsAtTouchdown / 25) * 10); // ~0.3s a 0.6s de tremor
+
+                let shakeFrames = Math.round(10 + (vsAtTouchdown / 25) * 1); // ~0.3s a 0.6s de tremor
                 shakeFrames = Math.min(36, Math.max(10, shakeFrames));
 
                 this.startCameraShake(shakeIntensity, shakeFrames);
@@ -2114,9 +2114,8 @@ class FlightSimulator {
             const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET;
 
             if (distanceToGround <= groundTouchThreshold) {
-                // Só ajusta a posição Y se o avião estiver abaixo do nível mínimo E não estiver com o bico erguido para subir
-                const isPitchingUpOrFlying = (this.planeState.pitch > 0.5) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
-                if (this.airplane.position.y < minHeight && !isPitchingUpOrFlying) {
+                // Impede o avião de afundar no solo em qualquer situação de pouso/frenagem
+                if (this.airplane.position.y < minHeight) {
                     this.airplane.position.y = minHeight;
                 }
 
@@ -2131,7 +2130,7 @@ class FlightSimulator {
                             this.createExplosion(this.airplane.position.clone(), 0.5);
                         }
                         this.planeState.speed = Math.max(0, this.planeState.speed - 0.07); // Freia
-                        
+
                         if (this.playerHealth <= 0) {
                             this.handleCrash("Você colidiu contra o terreno irregular!");
                             return;
@@ -2193,7 +2192,7 @@ class FlightSimulator {
             }
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
-            
+
             if (this.planeState.isPitchingUp) {
                 this.planeState.pitch = Math.min(this.planeState.pitch + pitchSpeed, maxPitch);
             } else if (this.planeState.isPitchingDown) {
@@ -2234,8 +2233,8 @@ class FlightSimulator {
 
         // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
         // Stall sem flaps: 200 km/h. Com flaps completos (flapLevel 2): 185 km/h.
-        const stallSpeedClean = 200;
-        const stallSpeedFullFlaps = 185;
+        const stallSpeedClean = 230;
+        const stallSpeedFullFlaps = 210;
         const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
 
         // Eficiência de Sustentação Aerodinâmica
@@ -2254,7 +2253,7 @@ class FlightSimulator {
             const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
             targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
-        
+
         if (this._isOnGround) {
             this.planeState.visualAoA = 0;
         } else {
@@ -2286,8 +2285,7 @@ class FlightSimulator {
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
         if (this._currentMinHeight !== -1000 && this.airplane.position.y < this._currentMinHeight) {
-            // Se o avião tiver vetor positivo de subida ou pitch maior que zero (bico erguido), não trava no chão
-            if (moveVector.y <= 0 && this.planeState.pitch <= 0.05) {
+            if (moveVector.y <= 0) {
                 this.airplane.position.y = this._currentMinHeight;
             }
         }
