@@ -2115,9 +2115,9 @@ class FlightSimulator {
 
             if (distanceToGround <= groundTouchThreshold) {
                 // Só ajusta a posição Y se o avião estiver abaixo do nível mínimo E não estiver com o bico erguido para subir
-                const isPitchingUpOrFlying = (this.planeState.pitch > 0.15) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
+                const isPitchingUpOrFlying = (this.planeState.pitch > 0.5) || (this.planeState.isPitchingUp && this.planeState.speed > 3);
                 if (this.airplane.position.y < minHeight && !isPitchingUpOrFlying) {
-                    this.airplane.position.y = THREE.MathUtils.lerp(this.airplane.position.y, minHeight, 0.25);
+                    this.airplane.position.y = minHeight;
                 }
 
                 // Se não estiver na pista de pouso e encostar no solo
@@ -2175,20 +2175,20 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            // No solo, nivelar totalmente o roll
-            const levelFactor = 0.1;
+            // No solo, nivelar suavemente o roll sem solavanco ou puxões
+            const levelFactor = 0.03;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
 
-            // Ao tentar subir o nariz (cabrar) para decolar, dar resposta direta e rápida no manche
+            // Ao tentar subir o nariz (cabrar) para decolar ou no pouso, dar resposta direta
             if (this.planeState.isPitchingUp) {
-                const takeoffPitchSpeed = 0.015; // Resposta bem mais rápida para rotacionar o bico no chão
+                const takeoffPitchSpeed = 0.015; // Resposta mais rápida para rotacionar o bico no chão
                 this.planeState.pitch = Math.min(this.planeState.pitch + takeoffPitchSpeed, maxPitch);
             } else if (this.planeState.isPitchingDown) {
                 this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, 0);
             } else {
-                // Se não houver comando de pitch no manche, suavemente mantém o estado atual ou nivela se velocidade baixa
-                if (speedKmh < 140) {
-                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, levelFactor);
+                // Mantém controle de atitude suave, nivelando muito delicadamente apenas em velocidades muito baixas
+                if (speedKmh < 60) {
+                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, 0.02);
                 }
             }
         } else {
