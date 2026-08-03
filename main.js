@@ -31,9 +31,6 @@ class FlightSimulator {
             this.landingModal = document.getElementById('landingModal');
             this.landingGrade = document.getElementById('landingGrade');
             this.landingTotalScore = document.getElementById('landingTotalScore');
-            this.centralityValue = document.getElementById('centralityValue');
-            this.centralityScoreBar = document.getElementById('centralityScoreBar');
-            this.centralityDesc = document.getElementById('centralityDesc');
             this.forceValue = document.getElementById('forceValue');
             this.forceScoreBar = document.getElementById('forceScoreBar');
             this.forceDesc = document.getElementById('forceDesc');
@@ -1595,20 +1592,9 @@ class FlightSimulator {
         this.landingReportDisplayed = true;
         this.stopEngineAudio();
 
-        const { deviation, verticalSpeed } = this.touchdownData;
+        const { verticalSpeed } = this.touchdownData;
 
-        // 1. Cálculo do Score de Alinhamento / Centralidade (Largura máxima antes da borda é 3.5m)
-        const centralityScore = Math.max(0, 100 - (deviation / 3.5) * 100);
-        let centralityRating = "Perfeita (No Centro)";
-        if (deviation > 2.5) {
-            centralityRating = "Descentralizada (Perto da Borda)";
-        } else if (deviation > 1.5) {
-            centralityRating = "Aceitável";
-        } else if (deviation > 0.5) {
-            centralityRating = "Boa (Perto do Centro)";
-        }
-
-        // 2. Cálculo do Score de Suavidade do Toque (Velocidade Vertical)
+        // Cálculo do Score de Suavidade do Toque (Velocidade Vertical)
         let forceScore = 100;
         let forceRating = "Manteiga (Extremamente Suave)";
         if (verticalSpeed > 0.5) {
@@ -1622,8 +1608,8 @@ class FlightSimulator {
             }
         }
 
-        // Pontuação Total baseada em Suavidade e Alinhamento (máx 1000)
-        const totalScore = Math.round((centralityScore + forceScore) / 2 * 10);
+        // Pontuação Total baseada exclusivamente na Suavidade do Toque (máx 1000)
+        const totalScore = Math.round(forceScore * 10);
 
         // Determinar Nota e Cor
         let grade = "F";
@@ -1657,10 +1643,6 @@ class FlightSimulator {
             this.landingTotalScore.textContent = `Pontuação: ${totalScore} / 1000`;
         }
 
-        if (this.centralityValue) this.centralityValue.textContent = `${deviation.toFixed(2)}m`;
-        if (this.centralityScoreBar) this.centralityScoreBar.style.width = `0%`;
-        if (this.centralityDesc) this.centralityDesc.textContent = `${centralityRating} (${Math.round(centralityScore)}/100)`;
-
         if (this.forceValue) this.forceValue.textContent = `${verticalSpeed.toFixed(2)} m/s`;
         if (this.forceScoreBar) this.forceScoreBar.style.width = `0%`;
         if (this.forceDesc) this.forceDesc.textContent = `${forceRating} (${Math.round(forceScore)}/100)`;
@@ -1674,7 +1656,6 @@ class FlightSimulator {
 
                 // Animar barras de progresso
                 setTimeout(() => {
-                    if (this.centralityScoreBar) this.centralityScoreBar.style.width = `${centralityScore}%`;
                     if (this.forceScoreBar) this.forceScoreBar.style.width = `${forceScore}%`;
                 }, 150);
             }, 50);
@@ -2098,14 +2079,16 @@ class FlightSimulator {
                     verticalSpeed: vsAtTouchdown
                 };
 
-                // Tremor de câmera proporcional ao impacto do pouso
-                let shakeIntensity = 0.01 + (vsAtTouchdown / 25) * 0.01;
-                shakeIntensity = Math.min(0.1, Math.max(0.01, shakeIntensity));
+                // Tremor de câmera apenas em toques com impacto real no solo (vs > 0.8 m/s)
+                if (vsAtTouchdown > 0.8) {
+                    let shakeIntensity = 0.01 + (vsAtTouchdown / 25) * 0.01;
+                    shakeIntensity = Math.min(0.1, Math.max(0.01, shakeIntensity));
 
-                let shakeFrames = Math.round(10 + (vsAtTouchdown / 25) * 1); // ~0.3s a 0.6s de tremor
-                shakeFrames = Math.min(36, Math.max(10, shakeFrames));
+                    let shakeFrames = Math.round(10 + (vsAtTouchdown / 25) * 1); // ~0.3s a 0.6s de tremor
+                    shakeFrames = Math.min(36, Math.max(10, shakeFrames));
 
-                this.startCameraShake(shakeIntensity, shakeFrames);
+                    this.startCameraShake(shakeIntensity, shakeFrames);
+                }
 
                 // Fumaçinha rápida saindo dos pneus no momento do toque no solo
                 this.createTouchdownSmoke();
@@ -2139,7 +2122,13 @@ class FlightSimulator {
                 }
             }
 
-            this._isOnGround = (distanceToGround <= groundTouchThreshold);
+            // Histerese para estado no solo: entra em 0.38m, mas só sai do solo acima de 0.50m (evita oscilação de 1 frame)
+            const groundReleaseThreshold = 0.50;
+            if (this._isOnGround) {
+                this._isOnGround = (distanceToGround <= groundReleaseThreshold);
+            } else {
+                this._isOnGround = (distanceToGround <= groundTouchThreshold);
+            }
             this._currentMinHeight = minHeight;
             this._onGroundOnRunway = (this._isOnGround && onRunway && this.planeState.speed < 1);
         } else {
@@ -2173,22 +2162,33 @@ class FlightSimulator {
             targetRoll = +maxRoll;
         }
 
+        // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
+        // Stall sem flaps: 230 km/h. Com flaps completos (flapLevel 2): 210 km/h.
+        const stallSpeedClean = 230;
+        const stallSpeedFullFlaps = 210;
+        const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
+
         if (this._isOnGround) {
             // No solo, nivelar suavemente o roll sem solavanco ou puxões
             const levelFactor = 0.03;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
 
-            // Ao tentar subir o nariz (cabrar) para decolar ou no pouso, dar resposta direta
-            if (this.planeState.isPitchingUp) {
-                const takeoffPitchSpeed = 0.015; // Resposta mais rápida para rotacionar o bico no chão
-                this.planeState.pitch = Math.min(this.planeState.pitch + takeoffPitchSpeed, maxPitch);
+            // Autoridade do profundor no solo: o ar precisa ter velocidade para ter força aerodinâmica e erguer o bico do avião.
+            // Começa a responder gradualmente acima de 120 km/h até autoridade total a ~180 km/h.
+            const minPitchSpeed = 120;
+            const fullRotationSpeed = currentStallSpeed * 0.85;
+            const elevatorAuthority = THREE.MathUtils.clamp((speedKmh - minPitchSpeed) / (fullRotationSpeed - minPitchSpeed), 0, 1);
+
+            // Ao tentar subir o nariz (cabrar) no chão, a resposta e o ângulo máximo dependem da autoridade aerodinâmica
+            if (this.planeState.isPitchingUp && elevatorAuthority > 0) {
+                const takeoffPitchSpeed = 0.02 * elevatorAuthority;
+                const maxGroundPitch = maxPitch * elevatorAuthority;
+                this.planeState.pitch = Math.min(this.planeState.pitch + takeoffPitchSpeed, maxGroundPitch);
             } else if (this.planeState.isPitchingDown) {
                 this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, 0);
             } else {
-                // Mantém controle de atitude suave, nivelando muito delicadamente apenas em velocidades muito baixas
-                if (speedKmh < 60) {
-                    this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, 0.02);
-                }
+                // Sem velocidade suficiente ou sem comando de cabrar, o nariz fica nivelado na pista
+                this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, 0.05);
             }
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
@@ -2231,12 +2231,6 @@ class FlightSimulator {
 
         speedKmh = this.planeState.speed * 30;
 
-        // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
-        // Stall sem flaps: 200 km/h. Com flaps completos (flapLevel 2): 185 km/h.
-        const stallSpeedClean = 230;
-        const stallSpeedFullFlaps = 210;
-        const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
-
         // Eficiência de Sustentação Aerodinâmica
         const liftEfficiency = THREE.MathUtils.clamp(speedKmh / currentStallSpeed, 0, 1);
 
@@ -2248,16 +2242,16 @@ class FlightSimulator {
         }
 
         // --- Inclinação Visual (Ângulo de Ataque - AoA) por Baixa Velocidade ---
-        let targetAoA = 0;
+        let targetAoA = 0.1;
         if (!this._isOnGround && speedKmh < currentStallSpeed) {
             const stallSeverity = (currentStallSpeed - speedKmh) / currentStallSpeed;
             targetAoA = 0.70 * stallSeverity; // Até ~12.5 graus de inclinação de nariz para cima
         }
 
         if (this._isOnGround) {
-            this.planeState.visualAoA = 0;
+            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, 0, 0.05);
         } else {
-            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.08);
+            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.001);
         }
 
         // Aplicar rotações ao objeto
@@ -2277,10 +2271,15 @@ class FlightSimulator {
 
         // Sustentação vertical calculada com base na eficiência aerodinâmica
         if (moveDirection.y > 0) {
-            moveDirection.y *= liftEfficiency;
+            // No solo, só permite descolar/subir se a velocidade atingir pelo menos ~85% da velocidade de stall
+            if (this._isOnGround && speedKmh < currentStallSpeed * 0.85) {
+                moveDirection.y = 0;
+            } else {
+                moveDirection.y *= liftEfficiency;
+            }
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.025);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
