@@ -1328,7 +1328,7 @@ class FlightSimulator {
 
         const maxSpeed = 20;
         const minSpeed = 0;
-        const speedChangeAmount = 0.04;
+        const speedChangeAmount = 0.05;
 
         if (keyStates.x) {
             this.planeState.speed = Math.min(this.planeState.speed + speedChangeAmount, maxSpeed);
@@ -2280,7 +2280,7 @@ class FlightSimulator {
             moveDirection.y *= liftEfficiency;
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.02);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
@@ -2297,7 +2297,7 @@ class FlightSimulator {
             // Posição final da câmera
             const targetCameraPosition = this.airplane.position.clone().add(this.cameraOffset.clone().applyQuaternion(this.airplane.quaternion));
 
-            this.camera.position.lerp(targetCameraPosition, 0.08);
+            this.camera.position.lerp(targetCameraPosition, 0.07);
             this.camera.lookAt(this.airplane.position);
         } else if (this.cameraMode === 'front') {
             if (this.airplane) {
