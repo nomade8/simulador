@@ -2163,21 +2163,21 @@ class FlightSimulator {
         }
 
         // --- VELOCIDADES REAIS DE JATO BIMOTOR (em km/h) ---
-        // Stall sem flaps: 230 km/h. Com flaps completos (flapLevel 2): 210 km/h.
-        const stallSpeedClean = 230;
-        const stallSpeedFullFlaps = 210;
+        // Stall sem flaps: 250 km/h. Com flaps completos (flapLevel 2): 230 km/h.
+        const stallSpeedClean = 250;
+        const stallSpeedFullFlaps = 230;
         const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
 
         if (this._isOnGround) {
             // No solo, nivelar suavemente o roll sem solavanco ou puxões
-            const levelFactor = 0.03;
+            const levelFactor = 0.04;
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, 0, levelFactor);
 
             // Autoridade do profundor no solo: o ar precisa ter velocidade para ter força aerodinâmica e erguer o bico do avião.
             // Começa a responder gradualmente acima de 120 km/h até autoridade total a ~180 km/h.
             const minPitchSpeed = 120;
             const fullRotationSpeed = currentStallSpeed * 0.85;
-            const elevatorAuthority = THREE.MathUtils.clamp((speedKmh - minPitchSpeed) / (fullRotationSpeed - minPitchSpeed), 0, 1);
+            const elevatorAuthority = THREE.MathUtils.clamp((speedKmh - minPitchSpeed) / (fullRotationSpeed - minPitchSpeed), 0, 0.2);
 
             // Ao tentar subir o nariz (cabrar) no chão, a resposta e o ângulo máximo dependem da autoridade aerodinâmica
             if (this.planeState.isPitchingUp && elevatorAuthority > 0) {
