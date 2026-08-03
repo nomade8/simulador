@@ -2280,7 +2280,7 @@ class FlightSimulator {
             moveDirection.y *= liftEfficiency;
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.02);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.025);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
