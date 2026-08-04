@@ -2249,7 +2249,7 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, 0, 0.05);
+            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, 0, 0.01);
         } else {
             this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.001);
         }
@@ -2279,7 +2279,7 @@ class FlightSimulator {
             }
         }
 
-        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.03);
+        const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.028);
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando
@@ -2313,7 +2313,7 @@ class FlightSimulator {
             const targetRotation = this.airplane.quaternion.clone().multiply(
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
             );
-            this.camera.quaternion.slerp(targetRotation, 0.1);
+            this.camera.quaternion.slerp(targetRotation, 0.05);
         } else if (this.cameraMode === 'orbit') {
             if (this.airplane && !this.gameOver) {
                 this.airplane.visible = true;
