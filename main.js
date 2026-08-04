@@ -2188,7 +2188,7 @@ class FlightSimulator {
                 this.planeState.pitch = Math.max(this.planeState.pitch - pitchSpeed, 0);
             } else {
                 // Sem velocidade suficiente ou sem comando de cabrar, o nariz fica nivelado na pista
-                this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, 0.05);
+                this.planeState.pitch = THREE.MathUtils.lerp(this.planeState.pitch, 0, 0.15);
             }
         } else {
             this.planeState.roll = THREE.MathUtils.lerp(this.planeState.roll, targetRoll, rollLerpFactor);
@@ -2218,8 +2218,8 @@ class FlightSimulator {
         const flapLevel = Math.round((this.planeState.flapTarget || 0) * 2); // 0 (Fechado), 1 (Fase 1), 2 (Fase 2)
         if (this._currentFlapSpeedMult === undefined) this._currentFlapSpeedMult = 1.0;
 
-        // Desejamos 5% de redução de velocidade por fase de flap
-        const targetFlapSpeedMult = 1.0 - (0.05 * flapLevel);
+        // Desejamos 6% de redução de velocidade por fase de flap
+        const targetFlapSpeedMult = 1.0 - (0.06 * flapLevel);
 
         if (Math.abs(this._currentFlapSpeedMult - targetFlapSpeedMult) > 0.0001) {
             const oldMult = this._currentFlapSpeedMult;
