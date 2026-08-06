@@ -66,6 +66,7 @@ export default class CityManager {
     }
 
     init() {
+        this.windowMaterials = [];
         Object.entries(this.buildingTypes).forEach(([type, config]) => {
             const geometry = this.createDetailedGeometry(type, config);
             
@@ -83,6 +84,7 @@ export default class CityManager {
                 roughness: 0.2,
                 metalness: 0.8
             });
+            this.windowMaterials.push(windowMaterial);
             
             const instancedMesh = new THREE.InstancedMesh(geometry, [baseMaterial, windowMaterial], config.count);
             instancedMesh.castShadow = true;
@@ -104,6 +106,14 @@ export default class CityManager {
 
         this.generateCity();
         this.createStreets();
+    }
+
+    setWindowEmissiveIntensity(intensity) {
+        if (this.windowMaterials) {
+            this.windowMaterials.forEach(mat => {
+                mat.emissiveIntensity = intensity;
+            });
+        }
     }
 
     _applyVertexColors(geometry, colorHex) {

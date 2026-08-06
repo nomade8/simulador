@@ -12,6 +12,104 @@ import Autopilot from './autopilot.js?v=1.0.3';
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+const TIME_OF_DAY_PRESETS = {
+    madrugada: {
+        name: '🌌 MADRUGADA (04:00)',
+        skyTop: '#060a17',
+        skyMid: '#121d38',
+        skyBottom: '#1a284c',
+        fogColor: '#0e172e',
+        fogDensity: 0.0007,
+        sunPosition: new THREE.Vector3(50, -50, 100),
+        sunColor: 0x4b6cb7,
+        sunIntensity: 0.25,
+        ambientColor: 0x18243b,
+        ambientIntensity: 0.22,
+        fillColor: 0x203050,
+        fillIntensity: 0.2,
+        starsOpacity: 1.0,
+        runwayEmissive: 5.0,
+        windowEmissive: 4.5,
+        landingLightOn: true
+    },
+    nascer_do_sol: {
+        name: '🌅 NASCER DO SOL (06:30)',
+        skyTop: '#3a506b',
+        skyMid: '#ff7e5f',
+        skyBottom: '#feb47b',
+        fogColor: '#df7959',
+        fogDensity: 0.00065,
+        sunPosition: new THREE.Vector3(300, 40, -200),
+        sunColor: 0xffb347,
+        sunIntensity: 0.9,
+        ambientColor: 0xffeaa7,
+        ambientIntensity: 0.45,
+        fillColor: 0xfd79a8,
+        fillIntensity: 0.35,
+        starsOpacity: 0.15,
+        runwayEmissive: 1.5,
+        windowEmissive: 1.5,
+        landingLightOn: false
+    },
+    dia: {
+        name: '☀️ DIA NORMAL (12:00)',
+        skyTop: '#44c0f1',
+        skyMid: '#3786ee',
+        skyBottom: '#076794',
+        fogColor: '#7acdf3',
+        fogDensity: 0.00065,
+        sunPosition: new THREE.Vector3(50, 200, 100),
+        sunColor: 0xffffff,
+        sunIntensity: 0.8,
+        ambientColor: 0xffffff,
+        ambientIntensity: 0.55,
+        fillColor: 0x8088ff,
+        fillIntensity: 0.5,
+        starsOpacity: 0.0,
+        runwayEmissive: 0.8,
+        windowEmissive: 0.5,
+        landingLightOn: false
+    },
+    por_do_sol: {
+        name: '🌇 PÔR DO SOL (18:30)',
+        skyTop: '#2b1055',
+        skyMid: '#ff512f',
+        skyBottom: '#f09819',
+        fogColor: '#8c352b',
+        fogDensity: 0.00065,
+        sunPosition: new THREE.Vector3(-300, 25, 200),
+        sunColor: 0xff4e00,
+        sunIntensity: 0.85,
+        ambientColor: 0xd35400,
+        ambientIntensity: 0.4,
+        fillColor: 0x8e44ad,
+        fillIntensity: 0.3,
+        starsOpacity: 0.35,
+        runwayEmissive: 3.0,
+        windowEmissive: 3.5,
+        landingLightOn: false
+    },
+    noite: {
+        name: '🌙 NOITE (23:00)',
+        skyTop: '#020409',
+        skyMid: '#060d1f',
+        skyBottom: '#0c1836',
+        fogColor: '#040814',
+        fogDensity: 0.00075,
+        sunPosition: new THREE.Vector3(-100, 150, -100),
+        sunColor: 0x7090bf,
+        sunIntensity: 0.15,
+        ambientColor: 0x0a1128,
+        ambientIntensity: 0.15,
+        fillColor: 0x142040,
+        fillIntensity: 0.1,
+        starsOpacity: 1.0,
+        runwayEmissive: 6.0,
+        windowEmissive: 5.0,
+        landingLightOn: true
+    }
+};
+
 class FlightSimulator {
     constructor() {
         console.log("Iniciando Simulador de Voo Puro...");
@@ -135,7 +233,12 @@ class FlightSimulator {
             const outputPass = new OutputPass();
             this.composer.addPass(outputPass);
 
-            // Céu com gradiente
+            // Lista de materiais de iluminação de pistas
+            this.runwayLightMaterials = [];
+            this.currentTimeOfDay = 'dia';
+
+            // Criar Céu com gradiente e Estrelas
+            this.createStarfield();
             this.createSkyGradient();
 
             // Iluminação
@@ -144,8 +247,9 @@ class FlightSimulator {
             // Criar Terreno, Pista, Vegetação, Nuvens e Cidade
             this.createScene();
 
-            // Criar Avião (Pousado na pista da cidade)
+            // Criar Avião (Pousado na pista da cidade) e Farol de Pouso
             this.createPlane();
+            this.setupLandingLight();
             this.cameraOffset = new THREE.Vector3(0, 1.3, -1);
 
             // Configurar Câmera
@@ -158,6 +262,10 @@ class FlightSimulator {
             this.controls.enableZoom = false;
             this.controls.enableRotate = false;
             this.controls.enabled = false;
+
+            // Configurar UI de Horário do Dia e aplicar padrão 'dia'
+            this.setupTimeOfDayUI();
+            this.setTimeOfDay('dia', false);
 
             // Configurar Controles de Voo e Tela Inicial
             this.setupControls();
@@ -222,6 +330,7 @@ class FlightSimulator {
 
     setupLights() {
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.ambientLight = ambientLight;
         this.scene.add(ambientLight);
 
         const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
@@ -238,6 +347,7 @@ class FlightSimulator {
         sunLight.shadow.camera.bottom = -100;
         sunLight.shadow.autoUpdate = true;
         this.sunLight = sunLight;
+        this.sunPositionOffset = new THREE.Vector3(50, 200, 100);
         this.scene.add(sunLight);
 
         // Criar o halo do sol
@@ -254,11 +364,13 @@ class FlightSimulator {
         const fillLight = new THREE.DirectionalLight(0x8088ff, 0.5);
         fillLight.position.set(-50, 100, -100);
         fillLight.shadow.autoUpdate = false;
+        this.fillLight = fillLight;
         this.scene.add(fillLight);
 
         const rimLight = new THREE.DirectionalLight(0xfff0dd, 0.5);
         rimLight.position.set(0, 50, -200);
         rimLight.shadow.autoUpdate = false;
+        this.rimLight = rimLight;
         this.scene.add(rimLight);
     }
 
@@ -311,12 +423,12 @@ class FlightSimulator {
                 if (dist < minDistToRunway) minDistToRunway = dist;
             }
 
-            // Se estiver a menos de 140m da pista, terreno é plano. De 140m a 320m faz transição suave.
+            // Se estiver a menos de 220m da pista, terreno é plano. De 220m a 450m faz transição suave.
             let flattenFactor = 1.0;
-            if (minDistToRunway < 140) {
+            if (minDistToRunway < 220) {
                 flattenFactor = 0;
-            } else if (minDistToRunway < 320) {
-                const t = (minDistToRunway - 140) / (320 - 140);
+            } else if (minDistToRunway < 450) {
+                const t = (minDistToRunway - 220) / (450 - 220);
                 flattenFactor = t * t * (3 - 2 * t); // Smoothstep
             }
 
@@ -558,31 +670,60 @@ class FlightSimulator {
             });
         });
 
-        // 6. Luzes laterais de pista e luzes de soleira (cabeceira)
-        const lightGeom = new THREE.SphereGeometry(0.25, 8, 8);
-        const greenLightMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const redLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const whiteLightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+        // 6. Luzes laterais de pista, luzes de soleira e balizamento de aproximação PAPI emissivos
+        const lightGeom = new THREE.SphereGeometry(0.3, 10, 10);
+        
+        const greenLightMat = new THREE.MeshStandardMaterial({ color: 0x00ff44, emissive: 0x00ff44, emissiveIntensity: 3.5, roughness: 0.1 });
+        const redLightMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 3.5, roughness: 0.1 });
+        const whiteLightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffdd, emissiveIntensity: 3.0, roughness: 0.1 });
+        const amberLightMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff8800, emissiveIntensity: 3.0, roughness: 0.1 });
 
-        // Luzes de soleiras (Verde entrada, Vermelho fim)
+        if (!this.runwayLightMaterials) this.runwayLightMaterials = [];
+        this.runwayLightMaterials.push(
+            { material: greenLightMat, baseEmissive: 3.5 },
+            { material: redLightMat, baseEmissive: 3.5 },
+            { material: whiteLightMat, baseEmissive: 3.0 },
+            { material: amberLightMat, baseEmissive: 3.0 }
+        );
+
+        // Luzes de soleiras (Verde aproximação, Vermelho fim de pista)
         for (let side = -1; side <= 1; side += 2) {
-            const gLight = new THREE.Mesh(lightGeom, greenLightMat);
-            gLight.position.set(side * (width / 2 + 0.6), 0.22, halfLen - 1);
-            runwayGroup.add(gLight);
+            // Soleira inicial verde
+            for (let k = -2; k <= 2; k++) {
+                const gLight = new THREE.Mesh(lightGeom, greenLightMat);
+                gLight.position.set(k * (width / 5), 0.25, halfLen - 1);
+                runwayGroup.add(gLight);
+            }
 
-            const rLight = new THREE.Mesh(lightGeom, redLightMat);
-            rLight.position.set(side * (width / 2 + 0.6), 0.22, -halfLen + 1);
-            runwayGroup.add(rLight);
+            // Soleira oposta vermelha
+            for (let k = -2; k <= 2; k++) {
+                const rLight = new THREE.Mesh(lightGeom, redLightMat);
+                rLight.position.set(k * (width / 5), 0.25, -halfLen + 1);
+                runwayGroup.add(rLight);
+            }
         }
 
-        // Luzes laterais ao longo do comprimento da pista
-        for (let z = -halfLen + 5; z <= halfLen - 5; z += 10) {
+        // Luzes laterais ao longo de todo o comprimento da pista
+        for (let z = -halfLen + 4; z <= halfLen - 4; z += 7) {
             for (let side = -1; side <= 1; side += 2) {
-                const edgeLight = new THREE.Mesh(lightGeom, whiteLightMat);
-                edgeLight.position.set(side * (width / 2 + 0.6), 0.22, z);
+                // Últimos 20% da pista usam luzes ambar/alerta
+                const mat = Math.abs(z) > halfLen * 0.75 ? amberLightMat : whiteLightMat;
+                const edgeLight = new THREE.Mesh(lightGeom, mat);
+                edgeLight.position.set(side * (width / 2 + 0.7), 0.25, z);
                 runwayGroup.add(edgeLight);
             }
         }
+
+        // Luzes PAPI de aproximação à esquerda das cabeceiras (4 luzes indicadoras de rampa)
+        [-halfLen + 20, halfLen - 20].forEach((papiZ, idx) => {
+            for (let p = 0; p < 4; p++) {
+                const papiMat = p < 2 ? redLightMat : whiteLightMat;
+                const papiLight = new THREE.Mesh(lightGeom, papiMat);
+                const sideX = (idx === 0) ? -(width / 2 + 2.5 + p * 0.8) : (width / 2 + 2.5 + p * 0.8);
+                papiLight.position.set(sideX, 0.35, papiZ);
+                runwayGroup.add(papiLight);
+            }
+        });
 
         this.scene.add(runwayGroup);
 
@@ -618,7 +759,7 @@ class FlightSimulator {
         const sin = Math.sin(-rot);
         const localX = dx * cos - dz * sin;
         const localZ = dx * sin + dz * cos;
-        return (Math.abs(localX) < r.width / 2 + 1.2 && Math.abs(localZ) < r.length / 2 + 2.0);
+        return (Math.abs(localX) < r.width / 2 + 2.5 && Math.abs(localZ) < r.length / 2 + 4.0);
     }
 
     createStylizedVegetation() {
@@ -870,6 +1011,209 @@ class FlightSimulator {
         this.scene.background = texture;
     }
 
+    createStarfield() {
+        const starCount = 1800;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
+
+        for (let i = 0; i < starCount; i++) {
+            const radius = 12000 + Math.random() * 3000;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.95 + 0.05);
+
+            positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i * 3 + 1] = radius * Math.cos(phi);
+            positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+
+            const starType = Math.random();
+            if (starType > 0.85) {
+                colors[i * 3] = 0.7; colors[i * 3 + 1] = 0.85; colors[i * 3 + 2] = 1.0;
+            } else if (starType > 0.7) {
+                colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 0.65;
+            } else {
+                colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
+            }
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        this.starMaterial = new THREE.PointsMaterial({
+            size: 35,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0,
+            sizeAttenuation: true
+        });
+
+        this.starfield = new THREE.Points(geometry, this.starMaterial);
+        this.scene.add(this.starfield);
+    }
+
+    setupLandingLight() {
+        if (!this.airplane) return;
+
+        // SpotLight de pouso acoplado ao nariz do avião
+        this.landingSpotLight = new THREE.SpotLight(0xfffaed, 0, 450, Math.PI / 4.5, 0.35, 1);
+        this.landingSpotLight.position.set(0, 0, 1.8);
+        
+        const spotTarget = new THREE.Object3D();
+        spotTarget.position.set(0, -15, 120);
+        this.airplane.add(spotTarget);
+        this.landingSpotLight.target = spotTarget;
+        this.airplane.add(this.landingSpotLight);
+
+        // Lâmpada emissiva frontal brilhante
+        const lightGeom = new THREE.SphereGeometry(0.18, 12, 12);
+        this.landingLightMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0
+        });
+        this.landingLightMesh = new THREE.Mesh(lightGeom, this.landingLightMaterial);
+        this.landingLightMesh.position.set(0, 0.1, 1.9);
+        this.airplane.add(this.landingLightMesh);
+    }
+
+    setTimeOfDay(presetKey, showToast = true) {
+        const preset = TIME_OF_DAY_PRESETS[presetKey];
+        if (!preset) return;
+
+        this.currentTimeOfDay = presetKey;
+
+        // 1. Gradiente do Céu
+        const canvas = document.createElement('canvas');
+        canvas.width = 2;
+        canvas.height = 256;
+        const context = canvas.getContext('2d');
+        const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, preset.skyTop);
+        gradient.addColorStop(0.5, preset.skyMid);
+        gradient.addColorStop(1, preset.skyBottom);
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        this.scene.background = texture;
+
+        // 2. Nevoeiro (Fog)
+        if (this.scene.fog) {
+            this.scene.fog.color.set(preset.fogColor);
+            this.scene.fog.density = preset.fogDensity;
+        }
+
+        // 3. Luzes Solar / Lumar e Ambiente
+        if (this.sunPositionOffset) {
+            this.sunPositionOffset.copy(preset.sunPosition);
+        }
+        if (this.ambientLight) {
+            this.ambientLight.color.set(preset.ambientColor);
+            this.ambientLight.intensity = preset.ambientIntensity;
+        }
+        if (this.sunLight) {
+            this.sunLight.color.set(preset.sunColor);
+            this.sunLight.intensity = preset.sunIntensity;
+            if (this.sunHalo) {
+                this.sunHalo.visible = (presetKey !== 'noite' && presetKey !== 'madrugada');
+            }
+        }
+        if (this.fillLight) {
+            this.fillLight.color.set(preset.fillColor);
+            this.fillLight.intensity = preset.fillIntensity;
+        }
+
+        // 4. Estrelas
+        if (this.starMaterial) {
+            this.starMaterial.opacity = preset.starsOpacity;
+        }
+
+        // 5. Luzes de Pistas
+        this.updateRunwayLights(preset.runwayEmissive);
+
+        // 6. Janelas dos Edifícios da Cidade
+        if (this.cityManager && typeof this.cityManager.setWindowEmissiveIntensity === 'function') {
+            this.cityManager.setWindowEmissiveIntensity(preset.windowEmissive);
+        }
+        if (this.city2Manager && typeof this.city2Manager.setWindowEmissiveIntensity === 'function') {
+            this.city2Manager.setWindowEmissiveIntensity(preset.windowEmissive);
+        }
+
+        // 7. Farol do Avião (Landing Light)
+        if (this.landingSpotLight) {
+            this.landingSpotLight.intensity = preset.landingLightOn ? 18 : 0;
+        }
+        if (this.landingLightMaterial) {
+            this.landingLightMaterial.opacity = preset.landingLightOn ? 1.0 : 0;
+        }
+
+        // 8. Atualizar Seleção no HUD
+        document.querySelectorAll('.tod-btn').forEach(btn => {
+            if (btn.getAttribute('data-time') === presetKey) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // 9. Atualizar Seleção na Tela Inicial
+        document.querySelectorAll('.tod-start-btn').forEach(btn => {
+            if (btn.getAttribute('data-time') === presetKey) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // 10. Toast de Notificação HUD
+        if (showToast) {
+            this.showTODToast(preset.name);
+        }
+    }
+
+    updateRunwayLights(multiplier) {
+        if (this.runwayLightMaterials) {
+            this.runwayLightMaterials.forEach(item => {
+                item.material.emissiveIntensity = item.baseEmissive * multiplier;
+            });
+        }
+    }
+
+    setupTimeOfDayUI() {
+        // Cliques no seletor de horários do HUD
+        document.querySelectorAll('.tod-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const timeKey = e.currentTarget.getAttribute('data-time');
+                if (timeKey) {
+                    this.setTimeOfDay(timeKey);
+                }
+            });
+        });
+
+        // Cliques no seletor de horários da Tela Inicial
+        document.querySelectorAll('.tod-start-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const timeKey = e.currentTarget.getAttribute('data-time');
+                if (timeKey) {
+                    this.setTimeOfDay(timeKey);
+                }
+            });
+        });
+    }
+
+    showTODToast(name) {
+        const toast = document.getElementById('todToast');
+        if (!toast) return;
+        toast.textContent = `HORÁRIO: ${name}`;
+        toast.classList.add('visible');
+
+        if (this.todToastTimeout) clearTimeout(this.todToastTimeout);
+        this.todToastTimeout = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 2200);
+    }
+
     createLandingMessage() {
         this.landingMessage = document.createElement('div');
         this.landingMessage.id = 'landingMessage';
@@ -956,6 +1300,13 @@ class FlightSimulator {
             const key = event.key.toLowerCase();
             if (key === 'v') {
                 this.toggleCameraMode();
+            }
+            if (key === 't') {
+                // Alternar circularmente entre os horários do dia
+                const keys = Object.keys(TIME_OF_DAY_PRESETS);
+                const currentIndex = keys.indexOf(this.currentTimeOfDay);
+                const nextIndex = (currentIndex + 1) % keys.length;
+                this.setTimeOfDay(keys[nextIndex]);
             }
             if (key === 'f') {
                 // Alternar flaps: 0 (Retraído) -> 0.5 (15°) -> 1.0 (30°) -> 0
@@ -1929,27 +2280,6 @@ class FlightSimulator {
             return;
         }
 
-        // Gravar histórico contínuo de voo para Replay (últimos 20 segundos)
-        const nowHistory = performance.now();
-        this.flightHistory.push({
-            time: nowHistory,
-            position: this.airplane.position.clone(),
-            quaternion: this.airplane.quaternion.clone(),
-            rotation: this.planeState.rotation,
-            pitch: this.planeState.pitch,
-            roll: this.planeState.roll,
-            speed: this.planeState.speed,
-            altitude: this.planeState.altitude,
-            fuel: this.planeState.fuel,
-            flapTarget: this.planeState.flapTarget,
-            gearRetracted: this.planeState.gearRetracted
-        });
-
-        const cutoffHistory = nowHistory - (this.maxHistoryDuration * 1000);
-        while (this.flightHistory.length > 0 && this.flightHistory[0].time < cutoffHistory) {
-            this.flightHistory.shift();
-        }
-
         // Atualizar áudio do motor
         this.updateEngineAudio();
 
@@ -2013,13 +2343,43 @@ class FlightSimulator {
         const down = new THREE.Vector3(0, -1, 0);
         raycaster.set(this.airplane.position, down);
 
-        const runwayMeshes = (this.runways || []).map(r => r.mesh);
+        const runwayMeshes = [];
+        (this.runways || []).forEach(r => {
+            if (r.group) {
+                r.group.traverse(child => {
+                    if (child.isMesh) runwayMeshes.push(child);
+                });
+            } else if (r.mesh) {
+                runwayMeshes.push(r.mesh);
+            }
+        });
         const intersects = raycaster.intersectObjects([this.ground, ...runwayMeshes], true);
         let groundAltitude = 0;
 
         if (intersects.length > 0) {
-            const actualGroundY = intersects[0].point.y;
-            const distanceToGround = intersects[0].distance;
+            let onRunway = false;
+            let activeRunway = null;
+            const planePos = this.airplane.position;
+
+            for (let r of (this.runways || [])) {
+                if (this.isPosOnRunway(planePos, r)) {
+                    onRunway = true;
+                    activeRunway = r;
+                    break;
+                }
+            }
+
+            let actualGroundY = intersects[0].point.y;
+            if (onRunway && activeRunway) {
+                actualGroundY = (activeRunway.position ? activeRunway.position.y : 0) + 0.15;
+            } else {
+                const runwayIntersect = intersects.find(hit => runwayMeshes.includes(hit.object));
+                if (runwayIntersect) {
+                    actualGroundY = 0.15;
+                }
+            }
+
+            const distanceToGround = Math.max(0, this.airplane.position.y - actualGroundY);
             this.planeState.altitude = this.airplane.position.y;
 
             // Calcular velocidade vertical baseada na alteração de altitude
@@ -2044,19 +2404,6 @@ class FlightSimulator {
 
             // Avisos de altitude sonoros (GPWS callouts: 50, 40, 30, 20, 10)
             this.checkAltitudeCallouts(distanceToGround);
-
-            // Flag de estar muito perto ou no chão
-            let onRunway = false;
-            let activeRunway = null;
-            const planePos = this.airplane.position;
-
-            for (let r of (this.runways || [])) {
-                if (this.isPosOnRunway(planePos, r)) {
-                    onRunway = true;
-                    activeRunway = r;
-                    break;
-                }
-            }
 
             const WHEEL_HEIGHT_OFFSET = 0.36; // Altura exata da base dos pneus ao centro do avião (escala 0.25)
             const groundTouchThreshold = 0.38; // Limiar de tolerância para contato das rodas
@@ -2249,7 +2596,7 @@ class FlightSimulator {
         }
 
         if (this._isOnGround) {
-            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, 0, 0.01);
+            this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, 0, 0.25);
         } else {
             this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.001);
         }
@@ -2287,6 +2634,27 @@ class FlightSimulator {
             if (moveVector.y <= 0) {
                 this.airplane.position.y = this._currentMinHeight;
             }
+        }
+
+        // Gravar histórico contínuo de voo para Replay (últimos 20 segundos) com posição e rotação final do frame
+        const nowHistory = performance.now();
+        this.flightHistory.push({
+            time: nowHistory,
+            position: this.airplane.position.clone(),
+            quaternion: this.airplane.quaternion.clone(),
+            rotation: this.planeState.rotation,
+            pitch: this.planeState.pitch,
+            roll: this.planeState.roll,
+            speed: this.planeState.speed,
+            altitude: this.planeState.altitude,
+            fuel: this.planeState.fuel,
+            flapTarget: this.planeState.flapTarget,
+            gearRetracted: this.planeState.gearRetracted
+        });
+
+        const cutoffHistory = nowHistory - (this.maxHistoryDuration * 1000);
+        while (this.flightHistory.length > 0 && this.flightHistory[0].time < cutoffHistory) {
+            this.flightHistory.shift();
         }
 
         if (this.cameraMode === 'thirdPerson') {
@@ -2368,14 +2736,16 @@ class FlightSimulator {
         // Atualizar HUD
         this.updateHUD();
 
-        // Luz do sol seguindo o avião
+        // Luz do sol/lua acompanhando a posição do avião com offset do horário
         if (this.sunLight && this.airplane) {
-            this.sunLight.position.set(
-                this.airplane.position.x + 50,
-                this.airplane.position.y + 200,
-                this.airplane.position.z + 100
-            );
+            const offset = this.sunPositionOffset || new THREE.Vector3(50, 200, 100);
+            this.sunLight.position.copy(this.airplane.position).add(offset);
             this.sunLight.target = this.airplane;
+        }
+
+        // Rotação sutil do campo de estrelas
+        if (this.starfield) {
+            this.starfield.rotation.y += 0.00003;
         }
 
         // Rotação contínua das hélices dos geradores eólicos
@@ -2386,8 +2756,8 @@ class FlightSimulator {
         }
 
         // Atualizar a posição do halo do sol para acompanhar a câmera
-        if (this.sunHalo && this.camera) {
-            const sunDir = new THREE.Vector3(50, 200, 100).normalize();
+        if (this.sunHalo && this.camera && this.sunPositionOffset) {
+            const sunDir = this.sunPositionOffset.clone().normalize();
             this.sunHalo.position.copy(this.camera.position).addScaledVector(sunDir, 5000);
         }
 

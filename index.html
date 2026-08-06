@@ -65,6 +65,21 @@
         <span id="cardinalValue" class="cardinal">N</span>
     </div>
 
+    <!-- Seletor de Horário do Dia no HUD -->
+    <div id="timeOfDaySelector" class="tod-hud">
+        <span class="tod-label">HORÁRIO DO DIA (T)</span>
+        <div class="tod-buttons">
+            <button class="tod-btn" data-time="madrugada" title="Madrugada (04:00)">🌌 Madrugada</button>
+            <button class="tod-btn" data-time="nascer_do_sol" title="Nascer do Sol (06:30)">🌅 Nascer do Sol</button>
+            <button class="tod-btn active" data-time="dia" title="Dia Normal (12:00)">☀️ Dia</button>
+            <button class="tod-btn" data-time="por_do_sol" title="Pôr do Sol (18:30)">🌇 Pôr do Sol</button>
+            <button class="tod-btn" data-time="noite" title="Noite (23:00)">🌙 Noite</button>
+        </div>
+    </div>
+
+    <!-- Toast de Notificação de Mudança de Horário -->
+    <div id="todToast" class="tod-toast">☀️ HORÁRIO: DIA</div>
+
     <div id="crosshair">十</div>
 
     <div id="gameOverScreen" class="overlay">
@@ -118,7 +133,7 @@
     </div>
 
     <div id="controls-hint">
-        <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto Automático | R: Replay | V: Câmera (Traseira / Cockpit / Órbita 360° Mouse)</p>
+        <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto | T: Horário do Dia (Céu) | R: Replay | V: Câmeras</p>
     </div>
 
     <!-- Minimapa HUD no Canto Inferior Direito -->
@@ -136,6 +151,18 @@
             </div>
 
             <div class="start-body">
+                <!-- Seção de Seleção de Horário do Dia -->
+                <div class="info-card tod-card">
+                    <h3>🌌 HORÁRIO INICIAL DE VOO</h3>
+                    <div class="tod-start-options">
+                        <button type="button" class="tod-start-btn" data-time="madrugada">🌌 Madrugada</button>
+                        <button type="button" class="tod-start-btn" data-time="nascer_do_sol">🌅 Nascer do Sol</button>
+                        <button type="button" class="tod-start-btn active" data-time="dia">☀️ Dia</button>
+                        <button type="button" class="tod-start-btn" data-time="por_do_sol">🌇 Pôr do Sol</button>
+                        <button type="button" class="tod-start-btn" data-time="noite">🌙 Noite</button>
+                    </div>
+                </div>
+
                 <!-- Seção de Velocidades Ideais -->
                 <div class="info-card speeds-card">
                     <h3>✈️ VELOCIDADES IDEAIS DE VOO</h3>
@@ -169,6 +196,7 @@
                         <div class="ctrl-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Inclinar Asas (Roll)</span></div>
                         <div class="ctrl-item"><kbd>F</kbd> <span>Flaps (0° → 15° → 30°)</span></div>
                         <div class="ctrl-item"><kbd>G</kbd> <span>Trem de Pouso (Sobe/Desce)</span></div>
+                        <div class="ctrl-item"><kbd>T</kbd> <span>Alternar Céu / Horário do Dia</span></div>
                         <div class="ctrl-item"><kbd>V</kbd> <span>Alternar Câmeras</span></div>
                         <div class="ctrl-item"><kbd>P</kbd> <span>Piloto Automático</span></div>
                         <div class="ctrl-item"><kbd>R</kbd> <span>Replay dos Últimos 20s</span></div>
