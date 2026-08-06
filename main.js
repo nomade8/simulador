@@ -670,21 +670,14 @@ class FlightSimulator {
             });
         });
 
-        // 6. Luzes laterais de pista, luzes de soleira e balizamento de aproximação PAPI emissivos
-        const lightGeom = new THREE.SphereGeometry(0.3, 10, 10);
+        // 6. Luzes laterais de pista, luzes de soleira e balizamento de aproximação PAPI emissivos sem atenuação por fog
+        const lightGeom = new THREE.SphereGeometry(0.35, 10, 10);
         
-        const greenLightMat = new THREE.MeshStandardMaterial({ color: 0x00ff44, emissive: 0x00ff44, emissiveIntensity: 3.5, roughness: 0.1 });
-        const redLightMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 3.5, roughness: 0.1 });
-        const whiteLightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffdd, emissiveIntensity: 3.0, roughness: 0.1 });
-        const amberLightMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff8800, emissiveIntensity: 3.0, roughness: 0.1 });
-
-        if (!this.runwayLightMaterials) this.runwayLightMaterials = [];
-        this.runwayLightMaterials.push(
-            { material: greenLightMat, baseEmissive: 3.5 },
-            { material: redLightMat, baseEmissive: 3.5 },
-            { material: whiteLightMat, baseEmissive: 3.0 },
-            { material: amberLightMat, baseEmissive: 3.0 }
-        );
+        // Materiais com fog: false para que as luzes brilhem com clareza cristalina no escuro e à distância
+        const greenLightMat = new THREE.MeshBasicMaterial({ color: 0x00ff44, fog: false });
+        const redLightMat = new THREE.MeshBasicMaterial({ color: 0xff2222, fog: false });
+        const whiteLightMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
+        const amberLightMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, fog: false });
 
         // Luzes de soleiras (Verde aproximação, Vermelho fim de pista)
         for (let side = -1; side <= 1; side += 2) {
@@ -703,27 +696,16 @@ class FlightSimulator {
             }
         }
 
-        // Luzes laterais ao longo de todo o comprimento da pista
-        for (let z = -halfLen + 4; z <= halfLen - 4; z += 7) {
+        // Luzes laterais de pista ao longo de todo o comprimento (Edge Lights)
+        for (let z = -halfLen + 4; z <= halfLen - 4; z += 6.5) {
             for (let side = -1; side <= 1; side += 2) {
-                // Últimos 20% da pista usam luzes ambar/alerta
+                // Últimos 25% da pista usam luzes ambar/alerta de fim de pista
                 const mat = Math.abs(z) > halfLen * 0.75 ? amberLightMat : whiteLightMat;
                 const edgeLight = new THREE.Mesh(lightGeom, mat);
                 edgeLight.position.set(side * (width / 2 + 0.7), 0.25, z);
                 runwayGroup.add(edgeLight);
             }
         }
-
-        // Luzes PAPI de aproximação à esquerda das cabeceiras (4 luzes indicadoras de rampa)
-        [-halfLen + 20, halfLen - 20].forEach((papiZ, idx) => {
-            for (let p = 0; p < 4; p++) {
-                const papiMat = p < 2 ? redLightMat : whiteLightMat;
-                const papiLight = new THREE.Mesh(lightGeom, papiMat);
-                const sideX = (idx === 0) ? -(width / 2 + 2.5 + p * 0.8) : (width / 2 + 2.5 + p * 0.8);
-                papiLight.position.set(sideX, 0.35, papiZ);
-                runwayGroup.add(papiLight);
-            }
-        });
 
         this.scene.add(runwayGroup);
 
@@ -1012,7 +994,7 @@ class FlightSimulator {
     }
 
     createStarfield() {
-        const starCount = 1800;
+        const starCount = 2200;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(starCount * 3);
         const colors = new Float32Array(starCount * 3);
@@ -1027,11 +1009,14 @@ class FlightSimulator {
             positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
 
             const starType = Math.random();
-            if (starType > 0.85) {
-                colors[i * 3] = 0.7; colors[i * 3 + 1] = 0.85; colors[i * 3 + 2] = 1.0;
-            } else if (starType > 0.7) {
-                colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 0.65;
+            if (starType > 0.8) {
+                // Brilhante branco-azulado
+                colors[i * 3] = 0.85; colors[i * 3 + 1] = 0.95; colors[i * 3 + 2] = 1.0;
+            } else if (starType > 0.6) {
+                // Amarelado/Dourado quente
+                colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.94; colors[i * 3 + 2] = 0.65;
             } else {
+                // Branco puríssimo
                 colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
             }
         }
@@ -1040,11 +1025,14 @@ class FlightSimulator {
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         this.starMaterial = new THREE.PointsMaterial({
-            size: 35,
+            size: 45,
             vertexColors: true,
             transparent: true,
             opacity: 0,
-            sizeAttenuation: true
+            sizeAttenuation: true,
+            fog: false, // IMPEDIR que o nevoeiro escureça as estrelas para preto!
+            blending: THREE.AdditiveBlending, // Brilho aditivo intenso
+            depthWrite: false
         });
 
         this.starfield = new THREE.Points(geometry, this.starMaterial);
@@ -1173,11 +1161,7 @@ class FlightSimulator {
     }
 
     updateRunwayLights(multiplier) {
-        if (this.runwayLightMaterials) {
-            this.runwayLightMaterials.forEach(item => {
-                item.material.emissiveIntensity = item.baseEmissive * multiplier;
-            });
-        }
+        // As luzes de pista usam MeshBasicMaterial sem fog para máxima visibilidade
     }
 
     setupTimeOfDayUI() {
