@@ -36,6 +36,14 @@
             <span id="altitude" class="value">0</span> <span class="unit">m</span>
         </div>
         <div class="hud-item">
+            <span class="label">VENTO</span>
+            <div class="wind-info">
+                <span id="windSpeed" class="value">0</span> <span class="unit">km/h</span>
+                <span id="windArrow" class="wind-arrow" title="Direção do Vento">⬆</span>
+                <span id="windCardinal" class="wind-cardinal">SO 225°</span>
+            </div>
+        </div>
+        <div class="hud-item">
             <span class="label">FLAPS</span>
             <span id="flaps" class="value">0°</span>
         </div>
@@ -77,7 +85,17 @@
         </div>
     </div>
 
-    <!-- Toast de Notificação de Mudança de Horário -->
+    <!-- Seletor de Nível de Vento no HUD -->
+    <div id="windSelector" class="wind-hud-selector">
+        <span class="tod-label">INTENSIDADE DO VENTO</span>
+        <div class="wind-buttons">
+            <button class="wind-btn" data-wind="fraco" title="Vento Fraco (Brisa suave)">🍃 Fraco</button>
+            <button class="wind-btn active" data-wind="medio" title="Vento Médio (Desafio moderado)">💨 Médio</button>
+            <button class="wind-btn" data-wind="forte" title="Vento Forte / Tempestade (Emoção máxima no pouso!)">🌪️ Forte (Emoção!)</button>
+        </div>
+    </div>
+
+    <!-- Toast de Notificação de Mudança de Horário e Vento -->
     <div id="todToast" class="tod-toast">☀️ HORÁRIO: DIA</div>
 
     <div id="crosshair">十</div>
@@ -160,6 +178,16 @@
                         <button type="button" class="tod-start-btn active" data-time="dia">☀️ Dia</button>
                         <button type="button" class="tod-start-btn" data-time="por_do_sol">🌇 Pôr do Sol</button>
                         <button type="button" class="tod-start-btn" data-time="noite">🌙 Noite</button>
+                    </div>
+                </div>
+
+                <!-- Seção de Seleção de Intensidade do Vento -->
+                <div class="info-card wind-card">
+                    <h3>💨 INTENSIDADE DO VENTO NO POUSO / AMBIENTE</h3>
+                    <div class="wind-start-options">
+                        <button type="button" class="wind-start-btn" data-wind="fraco">🍃 Fraco (Brisa)</button>
+                        <button type="button" class="wind-start-btn active" data-wind="medio">💨 Médio (Desafio)</button>
+                        <button type="button" class="wind-start-btn" data-wind="forte">🌪️ Forte (Emoção Máxima!)</button>
                     </div>
                 </div>
 

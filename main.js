@@ -110,6 +110,36 @@ const TIME_OF_DAY_PRESETS = {
     }
 };
 
+const WIND_PRESETS = {
+    fraco: {
+        name: '🍃 FRACO (Brisa Suave)',
+        baseSpeed: 12.0,
+        minSpeed: 5,
+        maxSpeed: 22,
+        turbulenceMult: 0.35,
+        verticalMult: 0.3,
+        dirNoiseAmp: 4.0
+    },
+    medio: {
+        name: '💨 MÉDIO (Desafio Moderado)',
+        baseSpeed: 30.0,
+        minSpeed: 15,
+        maxSpeed: 55,
+        turbulenceMult: 1.0,
+        verticalMult: 1.0,
+        dirNoiseAmp: 8.0
+    },
+    forte: {
+        name: '🌪️ FORTE (Emoção Máxima no Pouso!)',
+        baseSpeed: 58.0,
+        minSpeed: 35,
+        maxSpeed: 65,
+        turbulenceMult: 2.0,
+        verticalMult: 1.5,
+        dirNoiseAmp: 12.0
+    }
+};
+
 class FlightSimulator {
     constructor() {
         console.log("Iniciando Simulador de Voo Puro...");
@@ -267,6 +297,9 @@ class FlightSimulator {
             this.setupTimeOfDayUI();
             this.setTimeOfDay('dia', false);
 
+            // Configurar UI de Intensidade de Vento e aplicar padrão 'medio'
+            this.setupWindUI();
+
             // Configurar Controles de Voo e Tela Inicial
             this.setupControls();
             this.setupEngineAudio();
@@ -288,6 +321,21 @@ class FlightSimulator {
                 isPitchingUp: false,
                 isPitchingDown: false
             };
+
+            // Simulação de Vento no Ambiente (Aplica-se somente ao avião)
+            this.windState = {
+                presetKey: 'medio',
+                baseSpeed: 30.0,     // km/h base
+                baseDirection: 225,  // graus (Vento vindo de Sudoeste SO / 225°)
+                currentSpeed: 30.0,  // velocidade instantânea com rajadas
+                currentDirection: 225, // direção instantânea com variação
+                gustSpeed: 0,
+                turbulenceRoll: 0,
+                turbulencePitch: 0,
+                turbulenceYaw: 0,
+                turbulenceVertical: 0
+            };
+            this.setWindPreset('medio', false);
 
             this.cameraMode = 'thirdPerson';
             this.orbitYaw = 0;
@@ -1198,6 +1246,72 @@ class FlightSimulator {
         }, 2200);
     }
 
+    setWindPreset(presetKey, showToast = true) {
+        if (!WIND_PRESETS[presetKey]) return;
+        const preset = WIND_PRESETS[presetKey];
+        if (!this.windState) {
+            this.windState = { baseDirection: 225 };
+        }
+        this.windState.presetKey = presetKey;
+        this.windState.baseSpeed = preset.baseSpeed;
+
+        // Atualizar estilo ativo nos botões do HUD
+        document.querySelectorAll('.wind-btn').forEach(btn => {
+            if (btn.getAttribute('data-wind') === presetKey) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Atualizar estilo ativo nos botões da Tela Inicial
+        document.querySelectorAll('.wind-start-btn').forEach(btn => {
+            if (btn.getAttribute('data-wind') === presetKey) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        if (showToast) {
+            this.showWindToast(preset.name);
+        }
+    }
+
+    setupWindUI() {
+        // Cliques nos botões de vento do HUD
+        document.querySelectorAll('.wind-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const windKey = e.currentTarget.getAttribute('data-wind');
+                if (windKey) {
+                    this.setWindPreset(windKey);
+                }
+            });
+        });
+
+        // Cliques nos botões de vento da Tela Inicial
+        document.querySelectorAll('.wind-start-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const windKey = e.currentTarget.getAttribute('data-wind');
+                if (windKey) {
+                    this.setWindPreset(windKey);
+                }
+            });
+        });
+    }
+
+    showWindToast(name) {
+        const toast = document.getElementById('todToast');
+        if (!toast) return;
+        toast.textContent = `VENTO: ${name}`;
+        toast.classList.add('visible');
+
+        if (this.todToastTimeout) clearTimeout(this.todToastTimeout);
+        this.todToastTimeout = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 2200);
+    }
+
     createLandingMessage() {
         this.landingMessage = document.createElement('div');
         this.landingMessage.id = 'landingMessage';
@@ -1234,6 +1348,31 @@ class FlightSimulator {
         const fuelBar = document.getElementById('fuelBar');
         if (fuelBar) {
             fuelBar.style.width = `${this.planeState.fuel}%`;
+        }
+
+        // Atualizar Informações do Vento no HUD
+        if (this.windState) {
+            const windSpeedEl = document.getElementById('windSpeed');
+            const windArrowEl = document.getElementById('windArrow');
+            const windCardinalEl = document.getElementById('windCardinal');
+
+            if (windSpeedEl) {
+                windSpeedEl.textContent = Math.round(this.windState.currentSpeed);
+            }
+
+            if (windCardinalEl) {
+                const dir = (Math.round(this.windState.currentDirection) + 360) % 360;
+                const ptCardinals = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+                const cardIdx = Math.round(dir / 45) % 8;
+                const cardName = ptCardinals[cardIdx];
+                windCardinalEl.textContent = `${cardName} ${dir.toString().padStart(3, '0')}°`;
+            }
+
+            if (windArrowEl) {
+                // A seta indica a direção para onde o vento sopra (oposta à origem do vento)
+                const blowDirection = (this.windState.currentDirection + 180) % 360;
+                windArrowEl.style.transform = `rotate(${blowDirection}deg)`;
+            }
         }
 
         // Atualizar Proa / Heading (0° a 360°) no topo da tela
@@ -2585,11 +2724,73 @@ class FlightSimulator {
             this.planeState.visualAoA = THREE.MathUtils.lerp(this.planeState.visualAoA || 0, targetAoA, 0.001);
         }
 
-        // Aplicar rotações ao objeto
+        // --- Cálculo e Aplicação do Vento e Turbulência por Nível (Fraco, Médio, Forte) ---
+        if (!this.windState) {
+            this.windState = {
+                presetKey: 'medio',
+                baseSpeed: 30.0,
+                baseDirection: 225,
+                currentSpeed: 30.0,
+                currentDirection: 225,
+                gustSpeed: 0,
+                turbulenceRoll: 0,
+                turbulencePitch: 0,
+                turbulenceYaw: 0,
+                turbulenceVertical: 0
+            };
+        }
+
+        const currentWindPreset = WIND_PRESETS[this.windState.presetKey] || WIND_PRESETS.medio;
+        const windBaseSpeed = currentWindPreset.baseSpeed;
+        const turbMult = currentWindPreset.turbulenceMult;
+        const vertMult = currentWindPreset.verticalMult;
+        const dirAmp = currentWindPreset.dirNoiseAmp;
+
+        const timeSec = performance.now() * 0.001;
+        // Flutuação dinâmica e suave das rajadas de vento (proporcional ao nível)
+        const windNoise1 = Math.sin(timeSec * 0.35) * (6.0 * (windBaseSpeed / 30));
+        const windNoise2 = Math.cos(timeSec * 0.75 + 0.8) * (5.0 * (windBaseSpeed / 30));
+        const windNoise3 = Math.sin(timeSec * 1.25) * (3.0 * (windBaseSpeed / 30));
+        this.windState.gustSpeed = windNoise1 + windNoise2 + windNoise3;
+        this.windState.currentSpeed = Math.max(currentWindPreset.minSpeed, Math.min(currentWindPreset.maxSpeed, windBaseSpeed + this.windState.gustSpeed));
+
+        const dirNoise = Math.sin(timeSec * 0.15) * dirAmp + Math.cos(timeSec * 0.25) * (dirAmp * 0.75);
+        this.windState.currentDirection = (this.windState.baseDirection + dirNoise + 360) % 360;
+
+        // Vetor unitário de direção do vento no espaço do mundo
+        const windRad = (this.windState.currentDirection * Math.PI) / 180;
+        const windVector = new THREE.Vector3(
+            -Math.sin(windRad),
+            0,
+            -Math.cos(windRad)
+        );
+
+        if (!this._isOnGround) {
+            // Em voo: turbulência multiplicada pelo nível selecionado (Fraco, Médio ou Forte - Emoção Pouso)
+            const approachFactor = speedKmh > 0 ? THREE.MathUtils.clamp((260 - speedKmh) / 100, 0.7, 2.5) : 1.2;
+            const windTurbulenceIntensity = (this.windState.currentSpeed / 30) * approachFactor * turbMult;
+
+            // Balanço orgânico em Roll, Pitch e Yaw
+            const rollSway = (Math.sin(timeSec * 1.2) * 0.035 + Math.cos(timeSec * 0.5) * 0.020) * windTurbulenceIntensity;
+            const pitchSway = (Math.cos(timeSec * 1.4) * 0.022 + Math.sin(timeSec * 0.7) * 0.014) * windTurbulenceIntensity;
+            const yawSway = (Math.sin(timeSec * 0.8) * 0.016 + Math.cos(timeSec * 0.4) * 0.009) * windTurbulenceIntensity;
+
+            // Lerp de 0.04 para movimentação fluida
+            this.windState.turbulenceRoll = THREE.MathUtils.lerp(this.windState.turbulenceRoll || 0, rollSway, 0.04);
+            this.windState.turbulencePitch = THREE.MathUtils.lerp(this.windState.turbulencePitch || 0, pitchSway, 0.04);
+            this.windState.turbulenceYaw = THREE.MathUtils.lerp(this.windState.turbulenceYaw || 0, yawSway, 0.04);
+        } else {
+            // No solo: zerar suavemente o balanço das asas e profundor para manter estabilidade na pista
+            this.windState.turbulenceRoll = THREE.MathUtils.lerp(this.windState.turbulenceRoll || 0, 0, 0.08);
+            this.windState.turbulencePitch = THREE.MathUtils.lerp(this.windState.turbulencePitch || 0, 0, 0.08);
+            this.windState.turbulenceYaw = THREE.MathUtils.lerp(this.windState.turbulenceYaw || 0, 0, 0.08);
+        }
+
+        // Aplicar rotações ao objeto incluindo o balanço da turbulência do vento
         this.airplane.rotation.order = 'YXZ';
-        this.airplane.rotation.y = this.planeState.rotation;
-        this.airplane.rotation.x = -(this.planeState.pitch + this.planeState.visualAoA);
-        this.airplane.rotation.z = this.planeState.roll;
+        this.airplane.rotation.y = this.planeState.rotation + (this.windState.turbulenceYaw || 0);
+        this.airplane.rotation.x = -(this.planeState.pitch + this.planeState.visualAoA) + (this.windState.turbulencePitch || 0);
+        this.airplane.rotation.z = this.planeState.roll + (this.windState.turbulenceRoll || 0);
 
         // Atualizar superfícies móveis de controle (Flaps, Ailerons, Profundor e Leme)
         if (this.airplane.userData && typeof this.airplane.userData.updateControlSurfaces === 'function') {
@@ -2611,6 +2812,21 @@ class FlightSimulator {
         }
 
         const moveVector = moveDirection.multiplyScalar(this.planeState.speed * 0.028);
+
+        // Aplicação de empuxo/deriva do vento e caídas/subidas aleatórias no movimento do avião
+        if (!this._isOnGround) {
+            const windDriftScale = (this.windState.currentSpeed / 30) * 0.005;
+            const windDrift = windVector.clone().multiplyScalar(windDriftScale);
+
+            // Caídas e Subidas Aleatórias Verticais (escaladas pelo nível de vento)
+            const approachFactor = speedKmh > 0 ? THREE.MathUtils.clamp((260 - speedKmh) / 100, 0.7, 2.5) : 1.2;
+            const vertTarget = (Math.sin(timeSec * 0.9) * 0.0006 + Math.cos(timeSec * 0.15) * 0.0012) * (this.windState.currentSpeed / 30) * approachFactor * vertMult;
+            this.windState.turbulenceVertical = THREE.MathUtils.lerp(this.windState.turbulenceVertical || 0, vertTarget, 0.04);
+            windDrift.y += this.windState.turbulenceVertical;
+
+            moveVector.add(windDrift);
+        }
+
         this.airplane.position.add(moveVector);
 
         // Impedir o avião de afundar no solo apenas quando NÃO estiver subindo/decolando

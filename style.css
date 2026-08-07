@@ -52,6 +52,32 @@ canvas {
     color: rgba(255, 255, 255, 0.5);
 }
 
+.wind-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wind-arrow {
+    display: inline-block;
+    font-size: 18px;
+    font-weight: bold;
+    color: #00d2ff;
+    text-shadow: 0 0 8px rgba(0, 210, 255, 0.6);
+    transition: transform 0.3s ease;
+}
+
+.wind-cardinal {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4cd137;
+    background: rgba(76, 209, 55, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(76, 209, 55, 0.3);
+    letter-spacing: 0.5px;
+}
+
 .bar-container {
     width: 200px;
     height: 8px;
@@ -1021,6 +1047,117 @@ canvas {
     gap: 6px;
     z-index: 100;
     pointer-events: auto;
+}
+
+.wind-hud-selector {
+    position: absolute;
+    top: 95px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.wind-buttons {
+    display: flex;
+    gap: 5px;
+    background: rgba(10, 16, 26, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 5px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+}
+
+.wind-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+}
+
+.wind-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.wind-btn.active {
+    background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+    color: #fff;
+    font-weight: 800;
+    border-color: #00d2ff;
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4);
+}
+
+.wind-btn[data-wind="fraco"].active {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    border-color: #2ecc71;
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+}
+
+.wind-btn[data-wind="medio"].active {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    border-color: #f39c12;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+}
+
+.wind-btn[data-wind="forte"].active {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    border-color: #e74c3c;
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.6);
+    animation: pulseWindBtn 2s infinite ease-in-out;
+}
+
+@keyframes pulseWindBtn {
+    0%, 100% { box-shadow: 0 4px 15px rgba(231, 76, 60, 0.6); }
+    50% { box-shadow: 0 4px 22px rgba(231, 76, 60, 0.9); }
+}
+
+.wind-start-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.wind-start-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: center;
+}
+
+.wind-start-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transform: translateY(-2px);
+}
+
+.wind-start-btn.active {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: #fff;
+    font-weight: 700;
+    border-color: #e74c3c;
+    box-shadow: 0 4px 18px rgba(231, 76, 60, 0.5);
 }
 
 .tod-label {
