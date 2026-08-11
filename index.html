@@ -40,7 +40,7 @@
             <div class="wind-info">
                 <span id="windSpeed" class="value">0</span> <span class="unit">km/h</span>
                 <span id="windArrow" class="wind-arrow" title="Direção do Vento">⬆</span>
-                <span id="windCardinal" class="wind-cardinal">SO 225°</span>
+                <span id="windCardinal" class="wind-cardinal">N 000°</span>
             </div>
         </div>
         <div class="hud-item">
@@ -85,13 +85,14 @@
         </div>
     </div>
 
-    <!-- Seletor de Nível de Vento no HUD -->
+    <!-- Seletor de Nível e Direção de Vento no HUD -->
     <div id="windSelector" class="wind-hud-selector">
-        <span class="tod-label">INTENSIDADE DO VENTO</span>
+        <span class="tod-label">INTENSIDADE & DIREÇÃO DO VENTO</span>
         <div class="wind-buttons">
             <button class="wind-btn" data-wind="fraco" title="Vento Fraco (Brisa suave)">🍃 Fraco</button>
             <button class="wind-btn active" data-wind="medio" title="Vento Médio (Desafio moderado)">💨 Médio</button>
-            <button class="wind-btn" data-wind="forte" title="Vento Forte / Tempestade (Emoção máxima no pouso!)">🌪️ Forte (Emoção!)</button>
+            <button class="wind-btn" data-wind="forte" title="Vento Forte / Tempestade (Emoção máxima no pouso!)">🌪️ Forte</button>
+            <button class="wind-btn wind-dir-btn" id="btnRandomWindDir" title="Sortear nova direção do vento">🎲 Direção</button>
         </div>
     </div>
 
@@ -181,13 +182,16 @@
                     </div>
                 </div>
 
-                <!-- Seção de Seleção de Intensidade do Vento -->
+                <!-- Seção de Seleção de Intensidade e Direção do Vento -->
                 <div class="info-card wind-card">
-                    <h3>💨 INTENSIDADE DO VENTO NO POUSO / AMBIENTE</h3>
+                    <h3>💨 INTENSIDADE E DIREÇÃO DO VENTO NO POUSO</h3>
                     <div class="wind-start-options">
                         <button type="button" class="wind-start-btn" data-wind="fraco">🍃 Fraco (Brisa)</button>
                         <button type="button" class="wind-start-btn active" data-wind="medio">💨 Médio (Desafio)</button>
-                        <button type="button" class="wind-start-btn" data-wind="forte">🌪️ Forte (Emoção Máxima!)</button>
+                        <button type="button" class="wind-start-btn" data-wind="forte">🌪️ Forte (Emoção!)</button>
+                    </div>
+                    <div style="margin-top: 10px; text-align: center;">
+                        <button type="button" id="btnStartRandomWindDir" class="wind-start-btn" style="width: 100%; background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.3);">🎲 Sortear Nova Direção de Vento</button>
                     </div>
                 </div>
 

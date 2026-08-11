@@ -118,7 +118,7 @@ const WIND_PRESETS = {
         maxSpeed: 22,
         turbulenceMult: 0.35,
         verticalMult: 0.3,
-        dirNoiseAmp: 4.0
+        dirNoiseAmp: 18.0
     },
     medio: {
         name: '💨 MÉDIO (Desafio Moderado)',
@@ -127,7 +127,7 @@ const WIND_PRESETS = {
         maxSpeed: 55,
         turbulenceMult: 1.0,
         verticalMult: 1.0,
-        dirNoiseAmp: 8.0
+        dirNoiseAmp: 30.0
     },
     forte: {
         name: '🌪️ FORTE (Emoção Máxima no Pouso!)',
@@ -136,7 +136,7 @@ const WIND_PRESETS = {
         maxSpeed: 65,
         turbulenceMult: 2.0,
         verticalMult: 1.5,
-        dirNoiseAmp: 12.0
+        dirNoiseAmp: 45.0
     }
 };
 
@@ -322,13 +322,14 @@ class FlightSimulator {
                 isPitchingDown: false
             };
 
-            // Simulação de Vento no Ambiente (Aplica-se somente ao avião)
+            // Simulação de Vento no Ambiente com Variação Dinâmica de Direção e Rajadas
+            const randomInitialDir = Math.floor(Math.random() * 360);
             this.windState = {
                 presetKey: 'medio',
                 baseSpeed: 30.0,     // km/h base
-                baseDirection: 225,  // graus (Vento vindo de Sudoeste SO / 225°)
+                baseDirection: randomInitialDir, // direção sorteada aleatoriamente
                 currentSpeed: 30.0,  // velocidade instantânea com rajadas
-                currentDirection: 225, // direção instantânea com variação
+                currentDirection: randomInitialDir, // direção instantânea com variação
                 gustSpeed: 0,
                 turbulenceRoll: 0,
                 turbulencePitch: 0,
@@ -1250,7 +1251,7 @@ class FlightSimulator {
         if (!WIND_PRESETS[presetKey]) return;
         const preset = WIND_PRESETS[presetKey];
         if (!this.windState) {
-            this.windState = { baseDirection: 225 };
+            this.windState = { baseDirection: Math.floor(Math.random() * 360) };
         }
         this.windState.presetKey = presetKey;
         this.windState.baseSpeed = preset.baseSpeed;
@@ -1278,6 +1279,23 @@ class FlightSimulator {
         }
     }
 
+    randomizeWindDirection(showToast = true) {
+        if (!this.windState) {
+            this.windState = { presetKey: 'medio', baseSpeed: 30 };
+        }
+        const newDir = Math.floor(Math.random() * 360);
+        this.windState.baseDirection = newDir;
+        this.windState.currentDirection = newDir;
+
+        const ptCardinals = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+        const cardIdx = Math.round(newDir / 45) % 8;
+        const cardName = ptCardinals[cardIdx];
+
+        if (showToast) {
+            this.showWindToast(`DIREÇÃO ${cardName} (${newDir.toString().padStart(3, '0')}°)`);
+        }
+    }
+
     setupWindUI() {
         // Cliques nos botões de vento do HUD
         document.querySelectorAll('.wind-btn').forEach(btn => {
@@ -1298,6 +1316,21 @@ class FlightSimulator {
                 }
             });
         });
+
+        // Botões de Sortear Nova Direção de Vento
+        const btnRandomWindDir = document.getElementById('btnRandomWindDir');
+        if (btnRandomWindDir) {
+            btnRandomWindDir.addEventListener('click', () => {
+                this.randomizeWindDirection(true);
+            });
+        }
+
+        const btnStartRandomWindDir = document.getElementById('btnStartRandomWindDir');
+        if (btnStartRandomWindDir) {
+            btnStartRandomWindDir.addEventListener('click', () => {
+                this.randomizeWindDirection(true);
+            });
+        }
     }
 
     showWindToast(name) {
@@ -2726,12 +2759,13 @@ class FlightSimulator {
 
         // --- Cálculo e Aplicação do Vento e Turbulência por Nível (Fraco, Médio, Forte) ---
         if (!this.windState) {
+            const randomInitialDir = Math.floor(Math.random() * 360);
             this.windState = {
                 presetKey: 'medio',
                 baseSpeed: 30.0,
-                baseDirection: 225,
+                baseDirection: randomInitialDir,
                 currentSpeed: 30.0,
-                currentDirection: 225,
+                currentDirection: randomInitialDir,
                 gustSpeed: 0,
                 turbulenceRoll: 0,
                 turbulencePitch: 0,
@@ -2753,6 +2787,10 @@ class FlightSimulator {
         const windNoise3 = Math.sin(timeSec * 1.25) * (3.0 * (windBaseSpeed / 30));
         this.windState.gustSpeed = windNoise1 + windNoise2 + windNoise3;
         this.windState.currentSpeed = Math.max(currentWindPreset.minSpeed, Math.min(currentWindPreset.maxSpeed, windBaseSpeed + this.windState.gustSpeed));
+
+        // Variação contínua e gradual da direção do vento com o tempo (deriva ambiental natural)
+        const dirDrift = Math.sin(timeSec * 0.04) * 0.12;
+        this.windState.baseDirection = (this.windState.baseDirection + dirDrift + 360) % 360;
 
         const dirNoise = Math.sin(timeSec * 0.15) * dirAmp + Math.cos(timeSec * 0.25) * (dirAmp * 0.75);
         this.windState.currentDirection = (this.windState.baseDirection + dirNoise + 360) % 360;

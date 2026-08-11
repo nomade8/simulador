@@ -1120,6 +1120,18 @@ canvas {
     animation: pulseWindBtn 2s infinite ease-in-out;
 }
 
+.wind-dir-btn {
+    background: rgba(0, 210, 255, 0.12);
+    border: 1px solid rgba(0, 210, 255, 0.35);
+    color: #00f2fe;
+}
+
+.wind-dir-btn:hover {
+    background: rgba(0, 210, 255, 0.28);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+}
+
 @keyframes pulseWindBtn {
     0%, 100% { box-shadow: 0 4px 15px rgba(231, 76, 60, 0.6); }
     50% { box-shadow: 0 4px 22px rgba(231, 76, 60, 0.9); }
