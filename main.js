@@ -8,6 +8,7 @@ import { createPlayerPlane } from './planeFactory.js?v=1.0.3';
 import CityManager from './city.js?v=1.0.3';
 import City2Manager from './city2.js?v=1.0.3';
 import Autopilot from './autopilot.js?v=1.0.3';
+import AirlinerHUD from './airlinerHud.js?v=1.0.3';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -347,8 +348,9 @@ class FlightSimulator {
 
             this.cameraShake = { frames: 0, totalFrames: 0, intensity: 0 };
 
-            // Instanciar o Piloto Automático
+            // Instanciar o Piloto Automático e o HUD de Passageiros
             this.autopilot = new Autopilot(this);
+            this.airlinerHud = new AirlinerHUD(this);
 
             this.updateHealthBar();
             this.updateHUD();
@@ -1420,6 +1422,26 @@ class FlightSimulator {
         const cardValEl = document.getElementById('cardinalValue');
         if (hdgValEl) hdgValEl.textContent = `${headingDeg.toString().padStart(3, '0')}°`;
         if (cardValEl) cardValEl.textContent = cardinal;
+
+        // Atualizar HUD de Avião de Passageiros (Airliner HUD)
+        if (this.airlinerHud) {
+            const radioAlt = Math.max(0, (this.lastAltitude !== undefined ? this.lastAltitude : this.planeState.altitude) * 5);
+            this.airlinerHud.update({
+                speedKmh: this.planeState.speed * 30,
+                altitudeMeters: this.planeState.altitude * 5,
+                radioAltitude: radioAlt,
+                verticalSpeed: this.currentVerticalSpeed || 0,
+                pitch: this.planeState.pitch || 0,
+                visualAoA: this.planeState.visualAoA || 0,
+                roll: this.planeState.roll || 0,
+                headingDeg: headingDeg,
+                targetSpeed: this.autopilot ? this.autopilot.targetSpeed : 360,
+                targetAltitude: this.autopilot ? this.autopilot.targetAltitude : 500,
+                apEnabled: this.autopilot ? this.autopilot.enabled : false,
+                isOnGround: this._isOnGround,
+                cameraMode: this.cameraMode
+            });
+        }
 
         this.updateHealthBar();
     }
@@ -3024,5 +3046,8 @@ window.addEventListener('resize', () => {
     simulator.renderer.setSize(window.innerWidth, window.innerHeight);
     if (simulator.composer) {
         simulator.composer.setSize(window.innerWidth, window.innerHeight);
+    }
+    if (simulator.airlinerHud) {
+        simulator.airlinerHud.resize();
     }
 });

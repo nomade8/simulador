@@ -451,25 +451,63 @@ canvas {
     border: 1px solid rgba(0, 242, 254, 0.3);
 }
 
-/* --- Painel do Piloto Automático --- */
+/* --- Painel do Piloto Automático (Abaixo do HUD Original na Esquerda) --- */
 .ap-panel {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    background: rgba(12, 16, 23, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    top: 635px;
+    left: 20px;
+    background: rgba(12, 16, 23, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 16px;
-    padding: 18px 22px;
+    padding: 16px 20px;
     width: 280px;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     z-index: 60;
     color: #fff;
     font-family: 'Outfit', sans-serif;
-    transform: scale(0.7);
-    transform-origin: top right;
+    transform: scale(0.72);
+    transform-origin: top left;
     transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+@media (max-height: 820px) {
+    .ap-panel {
+        top: 395px;
+        transform: scale(0.64);
+    }
+}
+
+/* ==========================================================================
+   AIRLINER HEAD-UP DISPLAY (HUD DE AVIÃO DE PASSAGEIROS)
+   ========================================================================== */
+.airliner-hud-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 760px;
+    height: 540px;
+    max-width: 96vw;
+    max-height: 90vh;
+    pointer-events: none;
+    z-index: 50;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    background: transparent;
+}
+
+/* Canvas de Desenho Vetorial (HUD Verde Direto na Tela) */
+.airliner-hud-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
 .ap-header {
