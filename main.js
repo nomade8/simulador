@@ -8,7 +8,7 @@ import { createPlayerPlane } from './planeFactory.js?v=1.0.4';
 import CityManager from './city.js?v=1.0.4';
 import City2Manager from './city2.js?v=1.0.4';
 import Autopilot from './autopilot.js?v=1.0.4';
-import AirlinerHUD from './airlinerHud.js?v=1.0.5';
+import AirlinerHUD from './airlinerHud.js?v=1.0.6';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -1598,6 +1598,7 @@ class FlightSimulator {
                 if (this.startScreen) {
                     this.startScreen.classList.remove('visible');
                 }
+                this.warmupSpeechSynthesis();
                 this.startEngineAudio();
             });
         }
@@ -1924,6 +1925,7 @@ class FlightSimulator {
             }
             this.engineAudioStarted = true;
             this.updateEngineAudio();
+            this.warmupSpeechSynthesis();
         } catch (e) {
             console.warn("Erro ao iniciar áudio do motor a jato:", e);
         }
@@ -1961,6 +1963,18 @@ class FlightSimulator {
         this.engineAudioStarted = false;
     }
 
+    warmupSpeechSynthesis() {
+        if (!('speechSynthesis' in window)) return;
+        try {
+            window.speechSynthesis.resume();
+            const silent = new SpeechSynthesisUtterance(' ');
+            silent.volume = 0.01;
+            silent.rate = 2.0;
+            if (this.gpwsVoice) silent.voice = this.gpwsVoice;
+            window.speechSynthesis.speak(silent);
+        } catch (e) { }
+    }
+
     preloadGpwsVoice() {
         if (!('speechSynthesis' in window)) return;
         const voices = window.speechSynthesis.getVoices();
@@ -1996,28 +2010,34 @@ class FlightSimulator {
         if (this.gpwsVoice) {
             console.log("Voz MASCULINA GPWS Selecionada com Sucesso:", this.gpwsVoice.name);
         }
+        this.warmupSpeechSynthesis();
     }
 
     speakCallout(text) {
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
+            try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
 
-            // Re-garantir que a voz robótica foi carregada se a lista de vozes mudou
-            if (!this.gpwsVoice) {
-                this.preloadGpwsVoice();
+                // Re-garantir que a voz robótica foi carregada se a lista de vozes mudou
+                if (!this.gpwsVoice) {
+                    this.preloadGpwsVoice();
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 1.15; // Fala rápida e direta típica de GPWS de cabine real
+                utterance.pitch = 0.85; // Tom sintetizado de computador de bordo
+                utterance.volume = 1.0;
+
+                if (this.gpwsVoice) {
+                    utterance.voice = this.gpwsVoice;
+                }
+
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.warn("Erro ao emitir callout de voz:", e);
             }
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.rate = 1.0;
-            utterance.pitch = 0.85; // Tom sintetizado de computador de bordo
-            utterance.volume = 1.0;
-
-            if (this.gpwsVoice) {
-                utterance.voice = this.gpwsVoice;
-            }
-
-            window.speechSynthesis.speak(utterance);
         }
     }
 
@@ -2046,8 +2066,9 @@ class FlightSimulator {
     }
 
     checkTakeoffCallout(speedKmh, currentStallSpeed) {
-        // Velocidade de rotação/decolagem (~195-212 km/h)
-        const rotationSpeed = currentStallSpeed * 0.85;
+        // Velocidade de rotação/decolagem: V1 (~185-195 km/h) logo antes da rotação (Vr ~200-215 km/h)
+        // Disparar com tempo exato para o áudio casar perfeitamente com o momento de cabrar
+        const rotationSpeed = currentStallSpeed * 0.80;
         if (this._isOnGround && speedKmh >= rotationSpeed && !this.takeoffCalloutPlayed) {
             this.takeoffCalloutPlayed = true;
             this.speakCallout("V1, rotate");

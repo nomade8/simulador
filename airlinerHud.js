@@ -19,16 +19,42 @@ export default class AirlinerHUD {
         this.lastUpdateTime = performance.now();
         this.speedTrend = 0; // aceleração km/h por segundo
 
-        // Cores padrão estilo CRT / HUD Ótico Colimado
-        this.hudGreen = '#00ff66';
-        this.hudGreenBright = '#39ff14';
-        this.hudGreenDim = 'rgba(0, 255, 102, 0.4)';
-        this.hudGreenBg = 'rgba(0, 255, 102, 0.08)';
+        // Modos do HUD na tecla 'H':
+        // 0 = Desligado
+        // 1 = Verde 100% (Normal)
+        // 2 = Verde Dim / Opacidade Reduzida (~45%)
+        // 3 = Vermelho 100% (Visão Noturna / Alerta Tático)
+        this.hudMode = 0;
+        this.colorMode = 'green';
+        this.setTheme('green');
+
         this.hudWarning = '#ffcc00';
         this.hudAlert = '#ff3333';
 
         this.initDOM();
         this.initEvents();
+    }
+
+    /**
+     * Define o tema de cores do HUD (verde ou vermelho)
+     */
+    setTheme(theme) {
+        this.colorMode = theme;
+        if (theme === 'red') {
+            this.hudPrimary = '#ff3333';
+            this.hudBright = '#ff6666';
+            this.hudDim = 'rgba(255, 51, 51, 0.4)';
+            this.hudBg = 'rgba(255, 51, 51, 0.08)';
+            this.hudShadow = 'rgba(255, 51, 51, 0.65)';
+            this.hudBoxBg = 'rgba(22, 4, 4, 0.94)';
+        } else {
+            this.hudPrimary = '#00ff66';
+            this.hudBright = '#39ff14';
+            this.hudDim = 'rgba(0, 255, 102, 0.4)';
+            this.hudBg = 'rgba(0, 255, 102, 0.08)';
+            this.hudShadow = 'rgba(0, 255, 102, 0.65)';
+            this.hudBoxBg = 'rgba(5, 12, 10, 0.92)';
+        }
     }
 
     /**
@@ -41,7 +67,7 @@ export default class AirlinerHUD {
         this.container.className = 'airliner-hud-container';
         this.container.style.display = 'none';
 
-        // Canvas vetorial de alta precisão (HUD verde direto na tela)
+        // Canvas vetorial de alta precisão (HUD direto na tela)
         this.canvas = document.createElement('canvas');
         this.canvas.id = 'airlinerHudCanvas';
         this.canvas.className = 'airliner-hud-canvas';
@@ -88,12 +114,42 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Alterna a visibilidade do HUD de passageiros
+     * Alterna o modo do HUD pela tecla 'H':
+     * Ciclo: Desligado -> Verde 100% -> Verde Menor Opacidade -> Vermelho -> Desligado
      */
     toggle() {
-        this.visible = !this.visible;
-        if (this.container) {
-            this.container.style.display = this.visible ? 'flex' : 'none';
+        this.hudMode = (this.hudMode + 1) % 4;
+        this.applyMode();
+    }
+
+    /**
+     * Aplica o estado atual do HUD
+     */
+    applyMode() {
+        if (!this.container) return;
+        switch (this.hudMode) {
+            case 0: // Desligado
+                this.visible = false;
+                this.container.style.display = 'none';
+                break;
+            case 1: // Verde 100% (Normal)
+                this.visible = true;
+                this.setTheme('green');
+                this.container.style.opacity = '1';
+                this.container.style.display = 'flex';
+                break;
+            case 2: // Verde com Menor Opacidade (~45%)
+                this.visible = true;
+                this.setTheme('green');
+                this.container.style.opacity = '0.45';
+                this.container.style.display = 'flex';
+                break;
+            case 3: // Vermelho 100% (Visão Noturna / Tático)
+                this.visible = true;
+                this.setTheme('red');
+                this.container.style.opacity = '1';
+                this.container.style.display = 'flex';
+                break;
         }
     }
 
@@ -149,12 +205,12 @@ export default class AirlinerHUD {
         ctx.save();
 
         // Configuração de linha e brilho colimado (HUD Vector Phosphor)
-        ctx.strokeStyle = this.hudGreen;
-        ctx.fillStyle = this.hudGreen;
+        ctx.strokeStyle = this.hudPrimary;
+        ctx.fillStyle = this.hudPrimary;
         ctx.lineWidth = 1.8;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(0, 255, 102, 0.65)';
+        ctx.shadowColor = this.hudShadow;
         ctx.shadowBlur = 4;
         ctx.font = '600 13px "Outfit", monospace, sans-serif';
 
@@ -217,7 +273,7 @@ export default class AirlinerHUD {
 
         // Status do Piloto Automático / Sistema (Direita)
         const apText = data.apEnabled ? 'A/P 1+2 CMD' : 'FD / 2 CH';
-        ctx.fillStyle = data.apEnabled ? this.hudGreenBright : this.hudGreen;
+        ctx.fillStyle = data.apEnabled ? this.hudBright : this.hudPrimary;
         ctx.fillText(apText, cx + 180, topY);
 
         ctx.restore();
@@ -344,7 +400,7 @@ export default class AirlinerHUD {
         ctx.lineTo(-5, 8);
         ctx.lineTo(5, 8);
         ctx.closePath();
-        ctx.fillStyle = this.hudGreenBright;
+        ctx.fillStyle = this.hudBright;
         ctx.fill();
         ctx.stroke();
         ctx.restore();
@@ -442,7 +498,7 @@ export default class AirlinerHUD {
     drawBoresight(ctx, cx, cy) {
         ctx.save();
         ctx.lineWidth = 2.2;
-        ctx.strokeStyle = this.hudGreenBright;
+        ctx.strokeStyle = this.hudBright;
 
         // Asas do avião em formato de gaivota / chevron invertido (estilo Boeing / Collins)
         ctx.beginPath();
@@ -460,7 +516,7 @@ export default class AirlinerHUD {
         // Ponto central de mira
         ctx.beginPath();
         ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-        ctx.fillStyle = this.hudGreenBright;
+        ctx.fillStyle = this.hudBright;
         ctx.fill();
 
         ctx.restore();
@@ -495,7 +551,7 @@ export default class AirlinerHUD {
         const fpvX = cx;
 
         ctx.lineWidth = 1.8;
-        ctx.strokeStyle = this.hudGreenBright;
+        ctx.strokeStyle = this.hudBright;
 
         // Círculo central com aleta vertical e asas horizontais
         const r = 5.5;
@@ -574,7 +630,7 @@ export default class AirlinerHUD {
         const stallSpeed = 185;
         if (stallSpeed > currentSpeed - 80) {
             const stallY = cy - (stallSpeed - currentSpeed) * pxPerUnit;
-            ctx.fillStyle = 'rgba(255, 60, 60, 0.25)';
+            ctx.fillStyle = this.colorMode === 'red' ? 'rgba(255, 20, 20, 0.35)' : 'rgba(255, 60, 60, 0.25)';
             ctx.fillRect(x + tapeWidth - 6, Math.max(topY, stallY), 6, bottomY - Math.max(topY, stallY));
 
             ctx.strokeStyle = '#ff3333';
@@ -582,13 +638,13 @@ export default class AirlinerHUD {
             ctx.moveTo(x + tapeWidth - 6, Math.max(topY, stallY));
             ctx.lineTo(x + tapeWidth, Math.max(topY, stallY));
             ctx.stroke();
-            ctx.strokeStyle = this.hudGreen;
+            ctx.strokeStyle = this.hudPrimary;
         }
 
         // Bug de Velocidade Alvo (Target Speed Bug / MCP SPD)
         if (targetSpeed > currentSpeed - 70 && targetSpeed < currentSpeed + 70) {
             const bugY = cy - (targetSpeed - currentSpeed) * pxPerUnit;
-            ctx.fillStyle = this.hudGreenBright;
+            ctx.fillStyle = this.hudBright;
             ctx.beginPath();
             ctx.moveTo(x + tapeWidth, bugY);
             ctx.lineTo(x + tapeWidth - 10, bugY - 6);
@@ -600,7 +656,7 @@ export default class AirlinerHUD {
         // Vetor de Tendência de Velocidade (Speed Trend Vector)
         if (Math.abs(speedTrend) > 1.5) {
             const trendY = cy - THREE_Math_clamp(speedTrend * pxPerUnit, -90, 90);
-            ctx.strokeStyle = this.hudGreenBright;
+            ctx.strokeStyle = this.hudBright;
             ctx.lineWidth = 2.2;
             ctx.beginPath();
             ctx.moveTo(x + tapeWidth + 3, cy);
@@ -612,7 +668,7 @@ export default class AirlinerHUD {
             ctx.lineTo(x + tapeWidth + 7, trendY - 4 * arrowDir);
             ctx.stroke();
             ctx.lineWidth = 1.8;
-            ctx.strokeStyle = this.hudGreen;
+            ctx.strokeStyle = this.hudPrimary;
         }
 
         ctx.restore();
@@ -623,7 +679,7 @@ export default class AirlinerHUD {
         const boxX = x + tapeWidth - boxW - 8;
         const boxY = cy - boxH / 2;
 
-        ctx.fillStyle = 'rgba(5, 12, 10, 0.92)';
+        ctx.fillStyle = this.hudBoxBg;
         ctx.beginPath();
         ctx.moveTo(boxX, boxY);
         ctx.lineTo(boxX + boxW, boxY);
@@ -634,7 +690,7 @@ export default class AirlinerHUD {
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = this.hudGreenBright;
+        ctx.fillStyle = this.hudBright;
         ctx.font = '700 16px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -642,7 +698,7 @@ export default class AirlinerHUD {
 
         // 4. Mostrador de Velocidade Alvo no Topo da Fita (ex: 360)
         ctx.font = '700 13px "Outfit", monospace, sans-serif';
-        ctx.fillStyle = this.hudGreen;
+        ctx.fillStyle = this.hudPrimary;
         ctx.textAlign = 'left';
         ctx.fillText(`IAS ${Math.round(targetSpeed)}`, x - 10, topY - 10);
 
@@ -698,7 +754,7 @@ export default class AirlinerHUD {
         // Bug de Altitude Alvo (Target Altitude Bug / MCP ALT)
         if (targetAltitude > currentAltitude - 240 && targetAltitude < currentAltitude + 240) {
             const bugY = cy - (targetAltitude - currentAltitude) * pxPerUnit;
-            ctx.fillStyle = this.hudGreenBright;
+            ctx.fillStyle = this.hudBright;
             ctx.beginPath();
             ctx.moveTo(x, bugY);
             ctx.lineTo(x + 10, bugY - 6);
@@ -715,7 +771,7 @@ export default class AirlinerHUD {
         const boxX = x + 8;
         const boxY = cy - boxH / 2;
 
-        ctx.fillStyle = 'rgba(5, 12, 10, 0.92)';
+        ctx.fillStyle = this.hudBoxBg;
         ctx.beginPath();
         ctx.moveTo(boxX, boxY);
         ctx.lineTo(boxX + boxW, boxY);
@@ -726,7 +782,7 @@ export default class AirlinerHUD {
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = this.hudGreenBright;
+        ctx.fillStyle = this.hudBright;
         ctx.font = '700 16px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -734,7 +790,7 @@ export default class AirlinerHUD {
 
         // 4. Mostrador de Altitude Alvo no Topo da Fita (ex: 3000)
         ctx.font = '700 13px "Outfit", monospace, sans-serif';
-        ctx.fillStyle = this.hudGreen;
+        ctx.fillStyle = this.hudPrimary;
         ctx.textAlign = 'right';
         ctx.fillText(`ALT ${Math.round(targetAltitude)}`, x + tapeWidth + 10, topY - 10);
 
@@ -771,7 +827,7 @@ export default class AirlinerHUD {
         const clampedVS = THREE_Math_clamp(-verticalSpeed, -10, 10);
         const ptrY = cy - (clampedVS / 10) * (vsiH / 2);
 
-        ctx.fillStyle = this.hudGreenBright;
+        ctx.fillStyle = this.hudBright;
         ctx.beginPath();
         ctx.moveTo(vsiX, ptrY);
         ctx.lineTo(vsiX + 8, ptrY - 4);
@@ -798,7 +854,7 @@ export default class AirlinerHUD {
 
         // Subtítulo de auxílio ao pouso
         if (displayAlt <= 50 && !isOnGround) {
-            ctx.fillStyle = this.hudGreenBright;
+            ctx.fillStyle = this.hudBright;
             ctx.font = '700 12px "Outfit", monospace, sans-serif';
             ctx.fillText('FLARE / TOUCHDOWN', cx, y + 20);
         }

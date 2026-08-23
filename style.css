@@ -498,6 +498,7 @@ canvas {
     align-items: center;
     user-select: none;
     background: transparent;
+    transition: opacity 0.2s ease;
 }
 
 /* Canvas de Desenho Vetorial (HUD Verde Direto na Tela) */
@@ -1203,11 +1204,11 @@ canvas {
 }
 
 .wind-start-btn.active {
-    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-    color: #fff;
-    font-weight: 700;
-    border-color: #e74c3c;
-    box-shadow: 0 4px 18px rgba(231, 76, 60, 0.5);
+    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+    color: #050b14;
+    font-weight: 800;
+    border-color: #00f2fe;
+    box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4);
 }
 
 .tod-label {
