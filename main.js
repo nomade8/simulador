@@ -8,7 +8,7 @@ import { createPlayerPlane } from './planeFactory.js?v=1.0.4';
 import CityManager from './city.js?v=1.0.4';
 import City2Manager from './city2.js?v=1.0.4';
 import Autopilot from './autopilot.js?v=1.0.4';
-import AirlinerHUD from './airlinerHud.js?v=1.0.4';
+import AirlinerHUD from './airlinerHud.js?v=1.0.5';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -220,6 +220,7 @@ class FlightSimulator {
             this.landingActionTriggered = false;
             this.smokeParticles = [];
             this.spokenCallouts = { 50: false, 40: false, 30: false, 20: false, 10: false };
+            this.takeoffCalloutPlayed = false;
             this.gpwsVoice = null;
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.getVoices();
@@ -2044,6 +2045,18 @@ class FlightSimulator {
         }
     }
 
+    checkTakeoffCallout(speedKmh, currentStallSpeed) {
+        // Velocidade de rotação/decolagem (~195-212 km/h)
+        const rotationSpeed = currentStallSpeed * 0.85;
+        if (this._isOnGround && speedKmh >= rotationSpeed && !this.takeoffCalloutPlayed) {
+            this.takeoffCalloutPlayed = true;
+            this.speakCallout("V1, rotate");
+        } else if (this._isOnGround && speedKmh < 40) {
+            // Re-armar caso o avião desacelere ou pare na pista
+            this.takeoffCalloutPlayed = false;
+        }
+    }
+
     playExplosionSound() {
         const audio = new Audio('./explosion boa.mp3');
         audio.volume = 0.6;
@@ -2199,6 +2212,7 @@ class FlightSimulator {
         this.landingReportDisplayed = false;
         this.touchdownData = null;
         this.wasInAir = false; // Permite re-armar quando subir acima de 4m de altitude
+        this.takeoffCalloutPlayed = false;
 
         if (this.landingModal) {
             this.landingModal.classList.remove('visible');
@@ -2692,6 +2706,9 @@ class FlightSimulator {
         const stallSpeedClean = 250;
         const stallSpeedFullFlaps = 230;
         const currentStallSpeed = THREE.MathUtils.lerp(stallSpeedClean, stallSpeedFullFlaps, (this.planeState.flapTarget || 0));
+
+        // Chamada de voz GPWS para velocidade de rotação / decolagem ("V1, rotate")
+        this.checkTakeoffCallout(speedKmh, currentStallSpeed);
 
         if (this._isOnGround) {
             // No solo, nivelar suavemente o roll sem solavanco ou puxões

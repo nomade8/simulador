@@ -9,7 +9,7 @@
 export default class AirlinerHUD {
     constructor(simulator) {
         this.simulator = simulator;
-        this.visible = true;
+        this.visible = false;
         this.container = null;
         this.canvas = null;
         this.ctx = null;
@@ -39,6 +39,7 @@ export default class AirlinerHUD {
         this.container = document.createElement('div');
         this.container.id = 'airlinerHudContainer';
         this.container.className = 'airliner-hud-container';
+        this.container.style.display = 'none';
 
         // Canvas vetorial de alta precisão (HUD verde direto na tela)
         this.canvas = document.createElement('canvas');
@@ -185,7 +186,7 @@ export default class AirlinerHUD {
         this.drawSpeedTape(ctx, cx - 210, cy, speedKmh, targetSpeed, this.speedTrend, isOnGround);
 
         // 8. Fita de Altitude à Direita (Altitude Tape & VSI)
-        this.drawAltitudeTape(ctx, cx + 210, cy, altitudeMeters, targetAltitude, verticalSpeed, radioAltitude, isOnGround);
+        this.drawAltitudeTape(ctx, cx + 145, cy, altitudeMeters, targetAltitude, verticalSpeed, radioAltitude, isOnGround);
 
         // 9. Altímetro de Radar / Distância do Solo no Centro Inferior
         this.drawRadioAltitude(ctx, cx, cy + 120, radioAltitude, isOnGround);

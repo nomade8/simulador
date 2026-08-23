@@ -493,7 +493,7 @@ canvas {
     max-height: 90vh;
     pointer-events: none;
     z-index: 50;
-    display: flex;
+    display: none;
     justify-content: center;
     align-items: center;
     user-select: none;
