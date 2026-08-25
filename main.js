@@ -1449,7 +1449,7 @@ class FlightSimulator {
 
     setupControls() {
         const tryStartEngineAudio = () => {
-            if (!this.engineAudioStarted && !this.gameOver && !this.landingReportDisplayed && this.planeState.fuel > 0) {
+            if (!this.engineAudioStarted && !this.gameOver && this.planeState.fuel > 0) {
                 this.startEngineAudio();
             }
         };
@@ -1818,11 +1818,6 @@ class FlightSimulator {
             replayHUD.classList.remove('visible');
         }
 
-        // Retornar ao relatório de pouso se havíamos acabado de pousar
-        if (this.touchdownData && this.landingModal) {
-            this.landingModal.style.display = 'flex';
-            setTimeout(() => this.landingModal.classList.add('visible'), 50);
-        }
     }
 
     toggleReplayPause() {
@@ -2153,17 +2148,17 @@ class FlightSimulator {
         if (!this.touchdownData || this.landingReportDisplayed) return;
 
         this.landingReportDisplayed = true;
-        this.stopEngineAudio();
+        // Não pausamos o motor nem paramos o jogo para não interferir na simulação
 
         const { verticalSpeed } = this.touchdownData;
 
         // Cálculo do Score de Suavidade do Toque (Velocidade Vertical)
         let forceScore = 100;
-        let forceRating = "Manteiga (Extremamente Suave)";
+        let forceRating = "Manteiga";
         if (verticalSpeed > 0.5) {
             forceScore = Math.max(0, 100 - (verticalSpeed - 0.5) * 25);
             if (verticalSpeed > 3.0) {
-                forceRating = "Duro (Impacto Forte)";
+                forceRating = "Duro";
             } else if (verticalSpeed > 1.5) {
                 forceRating = "Firme";
             } else {
@@ -2197,31 +2192,47 @@ class FlightSimulator {
             gradeClass = "red";
         }
 
-        // Atualizar DOM do Modal
+        // Atualizar DOM do Widget HUD
         if (this.landingGrade) {
             this.landingGrade.textContent = grade;
             this.landingGrade.className = "rating-badge " + gradeClass;
         }
         if (this.landingTotalScore) {
-            this.landingTotalScore.textContent = `Pontuação: ${totalScore} / 1000`;
+            this.landingTotalScore.textContent = `${totalScore} / 1000`;
         }
 
         if (this.forceValue) this.forceValue.textContent = `${verticalSpeed.toFixed(2)} m/s`;
         if (this.forceScoreBar) this.forceScoreBar.style.width = `0%`;
-        if (this.forceDesc) this.forceDesc.textContent = `${forceRating} (${Math.round(forceScore)}/100)`;
+        if (this.forceDesc) this.forceDesc.textContent = `${forceRating} (${Math.round(forceScore)}%)`;
 
-        // Exibir o modal
+        // Exibir o widget HUD acima do minimapa por 2 segundos
         if (this.landingModal) {
+            if (this.landingHideTimer) {
+                clearTimeout(this.landingHideTimer);
+                this.landingHideTimer = null;
+            }
+
             this.landingModal.style.display = 'flex';
-            // Pequeno delay para a animação do CSS e preenchimento das barras
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 this.landingModal.classList.add('visible');
 
-                // Animar barras de progresso
-                setTimeout(() => {
-                    if (this.forceScoreBar) this.forceScoreBar.style.width = `${forceScore}%`;
-                }, 150);
-            }, 50);
+                if (this.forceScoreBar) {
+                    setTimeout(() => {
+                        this.forceScoreBar.style.width = `${forceScore}%`;
+                    }, 100);
+                }
+            });
+
+            // Permanece por 2 segundos e depois desaparece suavemente
+            this.landingHideTimer = setTimeout(() => {
+                if (this.landingModal) {
+                    this.landingModal.classList.remove('visible');
+                    setTimeout(() => {
+                        this.landingModal.style.display = 'none';
+                    }, 400);
+                }
+                this.landingHideTimer = null;
+            }, 4000);
         }
     }
 
@@ -2230,21 +2241,20 @@ class FlightSimulator {
             clearTimeout(this.landingTimer);
             this.landingTimer = null;
         }
+        if (this.landingHideTimer) {
+            clearTimeout(this.landingHideTimer);
+            this.landingHideTimer = null;
+        }
         this.landingReportDisplayed = false;
         this.touchdownData = null;
-        this.wasInAir = false; // Permite re-armar quando subir acima de 4m de altitude
+        this.wasInAir = false;
         this.takeoffCalloutPlayed = false;
 
         if (this.landingModal) {
             this.landingModal.classList.remove('visible');
             setTimeout(() => {
                 this.landingModal.style.display = 'none';
-            }, 500);
-        }
-
-        // Reiniciar áudio do motor ao continuar o voo
-        if (this.planeState.fuel > 0) {
-            this.startEngineAudio();
+            }, 400);
         }
     }
 
@@ -2487,11 +2497,7 @@ class FlightSimulator {
             return;
         }
 
-        if (this.landingReportDisplayed) {
-            this.composer.render();
-            requestAnimationFrame(() => this.animate());
-            return;
-        }
+
 
         // Atualizar áudio do motor
         this.updateEngineAudio();
@@ -2613,6 +2619,7 @@ class FlightSimulator {
             // Resetar o estado no ar se subiu acima de 4 metros
             if (distanceToGround > 4.0) {
                 this.wasInAir = true;
+                this.landingReportDisplayed = false;
             }
 
             // Avisos de altitude sonoros (GPWS callouts: 50, 40, 30, 20, 10)
@@ -2652,6 +2659,11 @@ class FlightSimulator {
 
                 // Fumaçinha rápida saindo dos pneus no momento do toque no solo
                 this.createTouchdownSmoke();
+
+                // Exibir o Relatório de Pouso compacto no HUD acima do minimapa
+                setTimeout(() => {
+                    this.showLandingModal();
+                }, 500);
             }
 
             const minHeight = actualGroundY + WHEEL_HEIGHT_OFFSET;
@@ -2709,7 +2721,7 @@ class FlightSimulator {
         const pitchSpeed = 0.003;
         const maxPitch = 0.9;
         const maxRoll = 0.65;
-        const rollLerpFactor = 0.05;
+        const rollLerpFactor = 0.025;
 
         let speedKmh = this.planeState.speed * 30;
         let targetRoll = 0;
