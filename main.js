@@ -4,11 +4,11 @@ import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { createPlayerPlane } from './planeFactory.js?v=1.0.4';
+import { createPlayerPlane } from './planeFactory.js?v=1.0.8';
 import CityManager from './city.js?v=1.0.4';
 import City2Manager from './city2.js?v=1.0.4';
-import Autopilot from './autopilot.js?v=1.0.4';
-import AirlinerHUD from './airlinerHud.js?v=1.0.6';
+import Autopilot from './autopilot.js?v=1.0.7';
+import AirlinerHUD from './airlinerHud.js?v=1.0.7';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -310,6 +310,9 @@ class FlightSimulator {
             // Variáveis de Estado de Voo (Inicia parado no solo com trem baixado)
             this.planeState = {
                 speed: 0,
+                throttle: 0,     // Manete de potência desejada (0 a 1 -> 0% a 100%)
+                enginePower: 0,  // Potência real N1 das turbinas com spool-up suave (0 a 1)
+                isBraking: false,
                 altitude: 0.51,
                 fuel: 100,
                 rotation: 0, // Yaw
@@ -323,6 +326,7 @@ class FlightSimulator {
                 isPitchingUp: false,
                 isPitchingDown: false
             };
+            this._lastPhysicsTime = performance.now();
 
             // Simulação de Vento no Ambiente com Variação Dinâmica de Direção e Rajadas
             const randomInitialDir = Math.floor(Math.random() * 360);
@@ -1364,6 +1368,23 @@ class FlightSimulator {
         document.getElementById('altitude').textContent = Math.round(this.planeState.altitude * 5);
         document.getElementById('fuel').textContent = Math.round(this.planeState.fuel);
 
+        // Atualizar Potência / Manete (N1%)
+        const throttlePct = Math.round((this.planeState.throttle || 0) * 100);
+        const powerPct = Math.round((this.planeState.enginePower || 0) * 100);
+        const powerEl = document.getElementById('powerValue');
+        const powerBar = document.getElementById('powerBar');
+        const powerTargetEl = document.getElementById('powerTargetMarker');
+        if (powerEl) {
+            powerEl.textContent = this.planeState.isBraking ? 'FREIO' : `${powerPct}%`;
+            powerEl.style.color = this.planeState.isBraking ? '#ff6b6b' : (powerPct >= 90 ? '#ffb347' : '#ffffff');
+        }
+        if (powerBar) {
+            powerBar.style.width = `${powerPct}%`;
+        }
+        if (powerTargetEl) {
+            powerTargetEl.style.left = `${throttlePct}%`;
+        }
+
         const flapsVal = this.planeState.flapTarget === 0.5 ? "15°" : (this.planeState.flapTarget === 1.0 ? "30°" : "0°");
         const flapsEl = document.getElementById('flaps');
         if (flapsEl) {
@@ -1378,7 +1399,8 @@ class FlightSimulator {
 
         const crosshair = document.getElementById('crosshair');
         if (crosshair) {
-            crosshair.style.display = this.cameraMode === 'front' ? 'block' : 'none';
+            const hudActive = this.airlinerHud && this.airlinerHud.visible;
+            crosshair.style.display = (this.cameraMode === 'front' && !hudActive) ? 'block' : 'none';
         }
 
         const fuelBar = document.getElementById('fuelBar');
@@ -1429,6 +1451,9 @@ class FlightSimulator {
             const radioAlt = Math.max(0, (this.lastAltitude !== undefined ? this.lastAltitude : this.planeState.altitude) * 5);
             this.airlinerHud.update({
                 speedKmh: this.planeState.speed * 30,
+                throttle: this.planeState.throttle || 0,
+                enginePower: this.planeState.enginePower || 0,
+                isBraking: !!this.planeState.isBraking,
                 altitudeMeters: this.planeState.altitude * 5,
                 radioAltitude: radioAlt,
                 verticalSpeed: this.currentVerticalSpeed || 0,
@@ -1469,11 +1494,15 @@ class FlightSimulator {
             ' ': false,
             x: false
         };
+        this.keyStates = keyStates;
 
         document.addEventListener('keydown', (event) => {
             // Ignorar atalhos de voo se o usuário estiver digitando nos campos de texto do Piloto Automático
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
                 return;
+            }
+            if (event.key === ' ') {
+                event.preventDefault();
             }
 
             const key = event.key.toLowerCase();
@@ -1779,6 +1808,8 @@ class FlightSimulator {
             pitch: item.pitch,
             roll: item.roll,
             speed: item.speed,
+            throttle: item.throttle || 0,
+            enginePower: item.enginePower || 0,
             altitude: item.altitude,
             fuel: item.fuel,
             flapTarget: item.flapTarget,
@@ -1848,17 +1879,6 @@ class FlightSimulator {
         this.planeState.isTurningRight = keyStates.ArrowRight || keyStates.d;
         this.planeState.isPitchingUp = keyStates.ArrowDown || keyStates.s;
         this.planeState.isPitchingDown = keyStates.ArrowUp || keyStates.w;
-
-        const maxSpeed = 20;
-        const minSpeed = 0;
-        const speedChangeAmount = 0.05;
-
-        if (keyStates.x) {
-            this.planeState.speed = Math.min(this.planeState.speed + speedChangeAmount, maxSpeed);
-        }
-        if (keyStates[' ']) {
-            this.planeState.speed = Math.max(this.planeState.speed - speedChangeAmount, minSpeed);
-        }
     }
 
     setupEngineAudio() {
@@ -1929,14 +1949,16 @@ class FlightSimulator {
     updateEngineAudio() {
         if (!this.engineAudioStarted || !this.audioCtx || !this.planeState) return;
 
-        const speedRatio = THREE.MathUtils.clamp((this.planeState.speed - 0) / (20 - 0), 0, 1);
+        const speedRatio = THREE.MathUtils.clamp((this.planeState.speed - 0) / 20, 0, 1);
+        const powerRatio = THREE.MathUtils.clamp(this.planeState.enginePower || 0, 0, 1);
+        const audioIntensity = THREE.MathUtils.clamp(powerRatio * 0.85 + speedRatio * 0.15, 0, 1);
         const now = this.audioCtx.currentTime;
 
-        // Frequência do ruído de jato: 220Hz em idle -> 1200Hz na aceleração máxima (somente ruído aveludado e potente)
-        const lowpassFreq = THREE.MathUtils.lerp(220, 1200, Math.pow(speedRatio, 0.9));
+        // Frequência do ruído de jato: 200Hz em idle -> 1300Hz na potência máxima (N1 100%)
+        const lowpassFreq = THREE.MathUtils.lerp(200, 1300, Math.pow(audioIntensity, 0.85));
 
-        // Volume proporcional
-        const mainGain = THREE.MathUtils.lerp(0.12, 0.35, speedRatio);
+        // Volume proporcional à potência das turbinas
+        const mainGain = THREE.MathUtils.lerp(0.08, 0.36, audioIntensity);
 
         // Atualização suave
         if (this.jetLowpassFilter) this.jetLowpassFilter.frequency.setTargetAtTime(lowpassFreq, now, 0.05);
@@ -2447,6 +2469,9 @@ class FlightSimulator {
                         rotation: THREE.MathUtils.lerp(frameA.rotation, frameB.rotation, alpha),
                         pitch: THREE.MathUtils.lerp(frameA.pitch, frameB.pitch, alpha),
                         roll: THREE.MathUtils.lerp(frameA.roll, frameB.roll, alpha),
+                        speed: THREE.MathUtils.lerp(frameA.speed, frameB.speed, alpha),
+                        throttle: THREE.MathUtils.lerp(frameA.throttle || 0, frameB.throttle || 0, alpha),
+                        enginePower: THREE.MathUtils.lerp(frameA.enginePower || 0, frameB.enginePower || 0, alpha),
                         flapAngle: frameA.flapTarget || 0,
                         gearRetracted: frameA.gearRetracted !== undefined ? frameA.gearRetracted : true
                     });
@@ -2454,6 +2479,8 @@ class FlightSimulator {
 
                 // Atualizar estado de voo temporário para exibir no HUD
                 this.planeState.speed = THREE.MathUtils.lerp(frameA.speed, frameB.speed, alpha);
+                this.planeState.throttle = THREE.MathUtils.lerp(frameA.throttle || 0, frameB.throttle || 0, alpha);
+                this.planeState.enginePower = THREE.MathUtils.lerp(frameA.enginePower || 0, frameB.enginePower || 0, alpha);
                 this.planeState.altitude = THREE.MathUtils.lerp(frameA.altitude, frameB.altitude, alpha);
                 this.planeState.fuel = frameA.fuel;
                 this.planeState.rotation = THREE.MathUtils.lerp(frameA.rotation, frameB.rotation, alpha);
@@ -2711,9 +2738,61 @@ class FlightSimulator {
             this.lastTime = performance.now();
         }
 
-        // --- Atualizar Piloto Automático (se ativado) ---
+        // --- Sistema de Potência (Manete / Turbinas N1 -> Velocidade) ---
+        const nowPhysics = performance.now();
+        const frameDt = THREE.MathUtils.clamp((nowPhysics - (this._lastPhysicsTime || nowPhysics)) / 1000, 0.001, 0.05);
+        this._lastPhysicsTime = nowPhysics;
+
+        if (this.keyStates) {
+            if (this.keyStates.x) {
+                this.planeState.throttle = Math.min(1, (this.planeState.throttle || 0) + 0.45 * frameDt);
+            }
+            if (this.keyStates[' ']) {
+                this.planeState.throttle = Math.max(0, (this.planeState.throttle || 0) - 0.55 * frameDt);
+            }
+            this.planeState.isBraking = !!(this._isOnGround && this.keyStates[' '] && (this.planeState.throttle || 0) <= 0.05);
+        }
+
+        // --- Atualizar Piloto Automático (se ativado, atua como Autothrottle sobre a manete) ---
         if (this.autopilot) {
             this.autopilot.update(this.planeState, this._isOnGround);
+        }
+
+        // Spool-up / Spool-down realista das turbinas (N1 segue a manete com inércia suave)
+        const targetEnginePower = this.planeState.fuel > 0 ? THREE.MathUtils.clamp(this.planeState.throttle || 0, 0, 1) : 0;
+        const currentPower = this.planeState.enginePower || 0;
+        const spoolRate = targetEnginePower > currentPower ? 1.45 : 1.95;
+        let nextPower = THREE.MathUtils.lerp(currentPower, targetEnginePower, 1 - Math.exp(-spoolRate * frameDt));
+        if (Math.abs(nextPower - targetEnginePower) < 0.002) nextPower = targetEnginePower;
+        this.planeState.enginePower = nextPower;
+
+        // Dinâmica Longitudinal: Empuxo (Potência) - Arrasto Aerodinâmico + Gravidade (Pitch) - Atrito/Freio no Solo
+        const maxThrustAccel = 2.6; // ~78 km/h por segundo a 100% de potência saindo do repouso
+        const thrustAccel = this.planeState.enginePower * maxThrustAccel;
+
+        const flapDrag = 0.30 * (this.planeState.flapAngle || 0);
+        const gearDownFactor = 1 - (this.planeState.gearFoldProgress !== undefined
+            ? this.planeState.gearFoldProgress
+            : (this.planeState.gearRetracted ? 0 : 1));
+        const gearDrag = 0.22 * gearDownFactor;
+        const dragMult = 1.0 + flapDrag + gearDrag;
+
+        const currentSpeed = this.planeState.speed || 0;
+        const dragAccel = (0.0052 * currentSpeed * currentSpeed + 0.026 * currentSpeed) * dragMult;
+        const gravityAccel = this._isOnGround ? 0 : -Math.sin(this.planeState.pitch || 0) * 1.45;
+
+        let groundDecel = 0;
+        if (this._isOnGround && currentSpeed > 0) {
+            groundDecel += 0.16; // Resistência de rolamento dos pneus
+            if (this.planeState.isBraking) {
+                groundDecel += 2.8; // Freios das rodas na pista
+            }
+        }
+
+        const netAccel = thrustAccel - dragAccel + gravityAccel - groundDecel;
+        this.planeState.speed = THREE.MathUtils.clamp(currentSpeed + netAccel * frameDt, 0, 21.5);
+        if (this._isOnGround && (this.planeState.throttle || 0) < 0.02 && this.planeState.speed < 0.03) {
+            this.planeState.speed = 0;
         }
 
         // --- Atualizar Yaw, Pitch e Roll baseando-se nos controles ---
@@ -2775,33 +2854,17 @@ class FlightSimulator {
             }
         }
 
-        // Consumo de Combustível
-        if (this.planeState.fuel > 0 && this.planeState.speed > 0) {
-            this.planeState.fuel -= 0.015 * (this.planeState.speed / 100);
-            this.planeState.fuel = Math.max(this.planeState.fuel, 0);
+        // Consumo de Combustível proporcional à potência das turbinas
+        if (this.planeState.fuel > 0 && (this.planeState.enginePower > 0.01 || this.planeState.speed > 0.1)) {
+            const burnRate = (0.002 + (this.planeState.enginePower || 0) * 0.016) * (frameDt * 60);
+            this.planeState.fuel = Math.max(0, this.planeState.fuel - burnRate);
         } else if (this.planeState.fuel <= 0) {
-            // Combustível esgotado: inicia descida e perde aceleração
+            // Combustível esgotado: motores desligam e o avião plana/perde altitude
             const gravity = 0.03;
             this.planeState.pitch = Math.max(this.planeState.pitch - 0.003, -0.4);
             if (!this._onGroundOnRunway) {
                 this.airplane.position.y -= gravity;
             }
-            this.planeState.speed = Math.max(0, this.planeState.speed - 0.03);
-        }
-
-        // --- Efeito dos Flaps na Velocidade (Redução Gradual e Suave) ---
-        const flapLevel = Math.round((this.planeState.flapTarget || 0) * 2); // 0 (Fechado), 1 (Fase 1), 2 (Fase 2)
-        if (this._currentFlapSpeedMult === undefined) this._currentFlapSpeedMult = 1.0;
-
-        // Desejamos 6% de redução de velocidade por fase de flap
-        const targetFlapSpeedMult = 1.0 - (0.06 * flapLevel);
-
-        if (Math.abs(this._currentFlapSpeedMult - targetFlapSpeedMult) > 0.0001) {
-            const oldMult = this._currentFlapSpeedMult;
-            // Transição gradual a cada frame (suave ao longo de ~1 a 2 segundos)
-            this._currentFlapSpeedMult = THREE.MathUtils.lerp(this._currentFlapSpeedMult, targetFlapSpeedMult, 0.025);
-            const stepRatio = this._currentFlapSpeedMult / oldMult;
-            this.planeState.speed *= stepRatio;
         }
 
         speedKmh = this.planeState.speed * 30;
@@ -2956,6 +3019,8 @@ class FlightSimulator {
             pitch: this.planeState.pitch,
             roll: this.planeState.roll,
             speed: this.planeState.speed,
+            throttle: this.planeState.throttle || 0,
+            enginePower: this.planeState.enginePower || 0,
             altitude: this.planeState.altitude,
             fuel: this.planeState.fuel,
             flapTarget: this.planeState.flapTarget,

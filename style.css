@@ -12,14 +12,14 @@ canvas {
 
 #hud {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 18px;
+    left: 18px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 10px;
     pointer-events: none;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 20px;
+    background: rgba(8, 12, 20, 0.42);
+    padding: 15px 18px;
     border-radius: 12px;
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -99,6 +99,29 @@ canvas {
 
 .bar.health {
     background: linear-gradient(90deg, #e74c3c, #f1c40f);
+}
+
+.power-bar-container {
+    position: relative;
+    overflow: visible;
+}
+
+.bar.power {
+    background: linear-gradient(90deg, #00d2ff 0%, #00ff87 65%, #ffb347 90%, #ff5252 100%);
+    border-radius: 4px;
+    transition: width 0.08s linear;
+}
+
+.power-target-marker {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 14px;
+    background: #ffffff;
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+    transform: translateX(-50%);
+    transition: left 0.06s linear;
+    pointer-events: none;
 }
 
 .overlay {
@@ -386,17 +409,17 @@ canvas {
 
 #crosshair {
     position: absolute;
-    top: 50%; /* Um pouquinho acima do centro */
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 28px;
+    font-size: 16px;
     font-weight: 300;
-    color: rgba(0, 255, 255, 0.75);
-    text-shadow: 0 0 6px rgba(0, 255, 255, 0.6);
+    color: rgba(180, 255, 220, 0.55);
+    text-shadow: 0 0 3px rgba(0, 255, 160, 0.35);
     pointer-events: none;
     display: none;
     z-index: 50;
-    font-family: sans-serif;
+    font-family: 'Outfit', sans-serif;
     user-select: none;
 }
 
@@ -476,17 +499,17 @@ canvas {
 }
 
 /* ==========================================================================
-   AIRLINER HEAD-UP DISPLAY (HUD DE AVIÃO DE PASSAGEIROS)
+   AIRLINER HEAD-UP DISPLAY (HUD DE AVIÃO DE PASSAGEIROS - LEVE & COLIMADO)
    ========================================================================== */
 .airliner-hud-container {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 760px;
-    height: 540px;
-    max-width: 96vw;
-    max-height: 90vh;
+    width: 860px;
+    height: 580px;
+    max-width: 94vw;
+    max-height: 88vh;
     pointer-events: none;
     z-index: 50;
     display: none;
@@ -494,7 +517,7 @@ canvas {
     align-items: center;
     user-select: none;
     background: transparent;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.25s ease;
 }
 
 /* Canvas de Desenho Vetorial (HUD Verde Direto na Tela) */

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Voo</title>
-    <link rel="stylesheet" href="./style.css?v=1.0.6">
+    <link rel="stylesheet" href="./style.css?v=1.0.7">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
     <script type="importmap">
     {
@@ -30,6 +30,14 @@
         <div class="hud-item">
             <span class="label">VELOCIDADE</span>
             <span id="speed" class="value">0</span> <span class="unit">km/h</span>
+        </div>
+        <div class="hud-item">
+            <span class="label">POTÊNCIA (N1)</span>
+            <div class="bar-container power-bar-container">
+                <div id="powerBar" class="bar power" style="width: 0%"></div>
+                <div id="powerTargetMarker" class="power-target-marker" style="left: 0%"></div>
+            </div>
+            <span id="powerValue" class="value">0%</span>
         </div>
         <div class="hud-item">
             <span class="label">ALTITUDE</span>
@@ -151,7 +159,7 @@
     </div>
 
     <div id="controls-hint">
-        <p>Setas / WASD: Pilotar | F: Flaps | G: Trem | P: Piloto | H: HUD Avião | T: Horário | R: Replay | V: Câmeras</p>
+        <p>Setas / WASD: Pilotar | X: +Potência | Espaço: -Potência/Freio | F: Flaps | G: Trem | P: Piloto | H: HUD | T: Horário | R: Replay | V: Câmeras</p>
     </div>
 
     <!-- Minimapa HUD no Canto Inferior Direito -->
@@ -200,7 +208,7 @@
                         <div class="speed-item takeoff">
                             <span class="speed-label">🛫 DECOLAGEM</span>
                             <span class="speed-val">220 - 260 km/h</span>
-                            <span class="speed-desc">Acelere (X), Flaps 15° (F) e puxe o manche (S / Seta Baixo)</span>
+                            <span class="speed-desc">Dê potência (X), Flaps 15° (F) e puxe o manche (S / Seta Baixo)</span>
                         </div>
                         <div class="speed-item landing">
                             <span class="speed-label">🛬 POUSO</span>
@@ -219,8 +227,8 @@
                 <div class="info-card controls-card">
                     <h3>🎮 CONTROLES DO AVIÃO</h3>
                     <div class="controls-grid">
-                        <div class="ctrl-item"><kbd>X</kbd> <span>Acelerar Motor</span></div>
-                        <div class="ctrl-item"><kbd>ESPAÇO</kbd> <span>Frear / Reduzir Motor</span></div>
+                        <div class="ctrl-item"><kbd>X</kbd> <span>Aumentar Potência (N1)</span></div>
+                        <div class="ctrl-item"><kbd>ESPAÇO</kbd> <span>Reduzir Potência / Freio</span></div>
                         <div class="ctrl-item"><kbd>S</kbd> / <kbd>↓</kbd> <span>Subir Bico (Cabrar)</span></div>
                         <div class="ctrl-item"><kbd>W</kbd> / <kbd>↑</kbd> <span>Baixar Bico (Picar)</span></div>
                         <div class="ctrl-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Inclinar Asas (Roll)</span></div>
@@ -262,6 +270,6 @@
         </div>
     </div>
 
-    <script type="module" src="./main.js?v=1.0.5"></script>
+    <script type="module" src="./main.js?v=1.0.8"></script>
 </body>
 </html>

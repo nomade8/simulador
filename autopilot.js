@@ -344,10 +344,20 @@ export default class Autopilot {
             planeState.pitch += (targetPitch - planeState.pitch) * this.pitchLerpFactor;
         }
 
-        // --- 3. CONTROLE SUAVE DE VELOCIDADE (SPEED) ---
+        // --- 3. AUTOTHROTTLE (CONTROLE DE VELOCIDADE VIA POTÊNCIA DOS MOTORES) ---
         const targetSpeedInternal = this.targetSpeed / 30; // Conversão de km/h para unidade interna do jogo
-        
-        // Transição suave de aceleração / desaceleração
-        planeState.speed += (targetSpeedInternal - planeState.speed) * this.speedLerpFactor;
+        const speedError = targetSpeedInternal - planeState.speed;
+
+        // Estimativa da potência de equilíbrio (feedforward) para a velocidade alvo + compensação de subida/descida
+        const flapDrag = 0.30 * (planeState.flapAngle || 0);
+        const gearDownFactor = 1 - (planeState.gearFoldProgress !== undefined ? planeState.gearFoldProgress : (planeState.gearRetracted ? 0 : 1));
+        const dragMult = 1.0 + flapDrag + 0.22 * gearDownFactor;
+        const eqDrag = (0.0052 * targetSpeedInternal * targetSpeedInternal + 0.026 * targetSpeedInternal) * dragMult;
+        const pitchComp = Math.sin(planeState.pitch || 0) * 1.45;
+        const baseThrottle = (eqDrag + pitchComp) / 2.6;
+
+        // Correção proporcional suave sobre a manete de potência
+        const desiredThrottle = Math.max(0, Math.min(1, baseThrottle + speedError * 0.22));
+        planeState.throttle += (desiredThrottle - (planeState.throttle || 0)) * 0.08;
     }
 }

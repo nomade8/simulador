@@ -1,9 +1,11 @@
 /**
- * airlinerHud.js - Head-Up Display (HUD) de Avião de Passageiros
- * 
- * Simula fielmente os HUDs de aeronaves comerciais modernas (Boeing 787, 737 MAX, Rockwell Collins HGS)
- * com visual vetorial verde fosforescente, lente combinadora ótica, fita de velocidade à esquerda,
- * fita de altitude à direita, pitch ladder, roll arc, boresight, flight path vector e modos FMA.
+ * airlinerHud.js - Head-Up Display (HUD) Colimado Minimalista de Primeira Pessoa
+ *
+ * Visual leve, nítido e desobstruído inspirado em HUDs óticos modernos (Boeing 787 HGS / Airbus):
+ * - Traços vetoriais finos (1.0 - 1.3px), brilho sutil e sem caixas opacas pesadas
+ * - Amplo campo central aberto para visão limpa da pista e do horizonte
+ * - Fitas laterais translúcidas de velocidade e altitude com fade vertical suave
+ * - Indicador integrado de Potência / N1% com marcador de manete alvo
  */
 
 export default class AirlinerHUD {
@@ -14,46 +16,46 @@ export default class AirlinerHUD {
         this.canvas = null;
         this.ctx = null;
 
-        // Histórico para cálculo de aceleração e tendência de velocidade (speed trend vector)
+        // Histórico para cálculo de tendência de velocidade (speed trend vector)
         this.speedHistory = [];
         this.lastUpdateTime = performance.now();
-        this.speedTrend = 0; // aceleração km/h por segundo
+        this.speedTrend = 0; // projeção de variação em km/h nos próximos 6s
 
         // Modos do HUD na tecla 'H':
         // 0 = Desligado
-        // 1 = Verde 100% (Normal)
-        // 2 = Verde Dim / Opacidade Reduzida (~45%)
-        // 3 = Vermelho 100% (Visão Noturna / Alerta Tático)
+        // 1 = Verde Cristal (Normal, leve)
+        // 2 = Verde Suave / Dim (~48%)
+        // 3 = Âmbar / Vermelho Noturno (Visão Noturna)
         this.hudMode = 0;
         this.colorMode = 'green';
         this.setTheme('green');
 
-        this.hudWarning = '#ffcc00';
-        this.hudAlert = '#ff3333';
+        this.hudWarning = '#ffd166';
+        this.hudAlert = '#ff5c5c';
 
         this.initDOM();
         this.initEvents();
     }
 
     /**
-     * Define o tema de cores do HUD (verde ou vermelho)
+     * Define a paleta leve e translúcida do HUD
      */
     setTheme(theme) {
         this.colorMode = theme;
         if (theme === 'red') {
-            this.hudPrimary = '#ff3333';
-            this.hudBright = '#ff6666';
-            this.hudDim = 'rgba(255, 51, 51, 0.4)';
-            this.hudBg = 'rgba(255, 51, 51, 0.08)';
-            this.hudShadow = 'rgba(255, 51, 51, 0.65)';
-            this.hudBoxBg = 'rgba(22, 4, 4, 0.94)';
+            this.hudPrimary = 'rgba(255, 92, 92, 0.88)';
+            this.hudBright = 'rgba(255, 138, 138, 0.96)';
+            this.hudSoft = 'rgba(255, 92, 92, 0.52)';
+            this.hudFaint = 'rgba(255, 92, 92, 0.24)';
+            this.hudShadow = 'rgba(255, 60, 60, 0.28)';
+            this.hudBoxBg = 'rgba(18, 4, 6, 0.26)';
         } else {
-            this.hudPrimary = '#00ff66';
-            this.hudBright = '#39ff14';
-            this.hudDim = 'rgba(0, 255, 102, 0.4)';
-            this.hudBg = 'rgba(0, 255, 102, 0.08)';
-            this.hudShadow = 'rgba(0, 255, 102, 0.65)';
-            this.hudBoxBg = 'rgba(5, 12, 10, 0.92)';
+            this.hudPrimary = 'rgba(72, 255, 155, 0.86)';
+            this.hudBright = 'rgba(145, 255, 195, 0.96)';
+            this.hudSoft = 'rgba(72, 255, 155, 0.50)';
+            this.hudFaint = 'rgba(72, 255, 155, 0.22)';
+            this.hudShadow = 'rgba(0, 255, 135, 0.24)';
+            this.hudBoxBg = 'rgba(4, 16, 12, 0.24)';
         }
     }
 
@@ -61,13 +63,11 @@ export default class AirlinerHUD {
      * Inicializa os elementos DOM do HUD
      */
     initDOM() {
-        // Container principal do HUD
         this.container = document.createElement('div');
         this.container.id = 'airlinerHudContainer';
         this.container.className = 'airliner-hud-container';
         this.container.style.display = 'none';
 
-        // Canvas vetorial de alta precisão (HUD direto na tela)
         this.canvas = document.createElement('canvas');
         this.canvas.id = 'airlinerHudCanvas';
         this.canvas.className = 'airliner-hud-canvas';
@@ -80,15 +80,15 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Ajusta a resolução do canvas para a escala física do monitor (Retina/High-DPI)
+     * Ajusta a resolução do canvas para monitores High-DPI / Retina
      */
     resize() {
         if (!this.canvas || !this.container) return;
         const rect = this.container.getBoundingClientRect();
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-        this.width = rect.width || 760;
-        this.height = rect.height || 540;
+        this.width = rect.width || 860;
+        this.height = rect.height || 580;
 
         this.canvas.width = this.width * dpr;
         this.canvas.height = this.height * dpr;
@@ -98,7 +98,7 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Ouvintes de eventos e teclas de atalho
+     * Ouvintes de eventos e tecla de atalho 'H'
      */
     initEvents() {
         window.addEventListener('resize', () => this.resize());
@@ -114,8 +114,7 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Alterna o modo do HUD pela tecla 'H':
-     * Ciclo: Desligado -> Verde 100% -> Verde Menor Opacidade -> Vermelho -> Desligado
+     * Alterna o modo do HUD pela tecla 'H'
      */
     toggle() {
         this.hudMode = (this.hudMode + 1) % 4;
@@ -123,38 +122,41 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Aplica o estado atual do HUD
+     * Aplica o estado visual atual do HUD
      */
     applyMode() {
         if (!this.container) return;
         switch (this.hudMode) {
-            case 0: // Desligado
+            case 0:
                 this.visible = false;
                 this.container.style.display = 'none';
                 break;
-            case 1: // Verde 100% (Normal)
+            case 1:
                 this.visible = true;
                 this.setTheme('green');
-                this.container.style.opacity = '1';
+                this.container.style.opacity = '0.92';
                 this.container.style.display = 'flex';
+                this.resize();
                 break;
-            case 2: // Verde com Menor Opacidade (~45%)
+            case 2:
                 this.visible = true;
                 this.setTheme('green');
-                this.container.style.opacity = '0.45';
+                this.container.style.opacity = '0.48';
                 this.container.style.display = 'flex';
+                this.resize();
                 break;
-            case 3: // Vermelho 100% (Visão Noturna / Tático)
+            case 3:
                 this.visible = true;
                 this.setTheme('red');
-                this.container.style.opacity = '1';
+                this.container.style.opacity = '0.90';
                 this.container.style.display = 'flex';
+                this.resize();
                 break;
         }
     }
 
     /**
-     * Atualização do loop de renderização (chamado a cada frame pelo simulador)
+     * Loop de renderização do HUD colimado
      */
     update(telemetry) {
         if (!this.visible || !this.ctx || !this.width || !this.height) return;
@@ -165,14 +167,15 @@ export default class AirlinerHUD {
         const cx = w / 2;
         const cy = h / 2;
 
-        // Limpar canvas
         ctx.clearRect(0, 0, w, h);
 
-        // Extrair telemetria com valores seguros
         const speedKmh = telemetry.speedKmh || 0;
+        const throttle = telemetry.throttle !== undefined ? telemetry.throttle : 0;
+        const enginePower = telemetry.enginePower !== undefined ? telemetry.enginePower : throttle;
+        const isBraking = !!telemetry.isBraking;
         const altitudeMeters = telemetry.altitudeMeters || 0;
         const radioAltitude = telemetry.radioAltitude !== undefined ? telemetry.radioAltitude : altitudeMeters;
-        const verticalSpeed = telemetry.verticalSpeed || 0; // m/s
+        const verticalSpeed = telemetry.verticalSpeed || 0;
         const pitchRad = telemetry.pitch || 0;
         const visualAoA = telemetry.visualAoA || 0;
         const effectivePitchDeg = (pitchRad + visualAoA) * (180 / Math.PI);
@@ -181,145 +184,153 @@ export default class AirlinerHUD {
         const headingDeg = telemetry.headingDeg !== undefined ? telemetry.headingDeg : 0;
         const targetSpeed = telemetry.targetSpeed || 360;
         const targetAltitude = telemetry.targetAltitude || 500;
-        const apEnabled = telemetry.apEnabled || false;
-        const isOnGround = telemetry.isOnGround || false;
+        const apEnabled = !!telemetry.apEnabled;
+        const isOnGround = !!telemetry.isOnGround;
 
-        // Cálculo de tendência de velocidade (speed trend vector em 6 segundos)
+        // Tendência de velocidade (6s)
         const now = performance.now();
         const dt = (now - this.lastUpdateTime) / 1000;
         this.lastUpdateTime = now;
         if (dt > 0 && dt < 1) {
             this.speedHistory.push({ time: now, speed: speedKmh });
-            if (this.speedHistory.length > 30) this.speedHistory.shift();
+            if (this.speedHistory.length > 24) this.speedHistory.shift();
 
             if (this.speedHistory.length >= 2) {
                 const oldest = this.speedHistory[0];
                 const timeDiff = (now - oldest.time) / 1000;
                 if (timeDiff > 0.1) {
-                    const accel = (speedKmh - oldest.speed) / timeDiff; // km/h por seg
-                    this.speedTrend = THREE_Math_lerp(this.speedTrend, accel * 6, 0.1); // Projeção para 6 segundos
+                    const accel = (speedKmh - oldest.speed) / timeDiff;
+                    this.speedTrend = lerp(this.speedTrend, accel * 6, 0.12);
                 }
             }
         }
 
-        ctx.save();
+        // Espaçamento adaptativo para manter o centro completamente livre
+        const tapeOffset = Math.min(270, w * 0.33);
 
-        // Configuração de linha e brilho colimado (HUD Vector Phosphor)
+        ctx.save();
         ctx.strokeStyle = this.hudPrimary;
         ctx.fillStyle = this.hudPrimary;
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.15;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.shadowColor = this.hudShadow;
-        ctx.shadowBlur = 4;
-        ctx.font = '600 13px "Outfit", monospace, sans-serif';
+        ctx.shadowBlur = 1.5;
+        ctx.font = '500 11px "Outfit", monospace, sans-serif';
 
-        // 1. Modos de Voo (FMA - Flight Mode Annunciator Bar) no topo
-        this.drawFMA(ctx, cx, 42, {
-            apEnabled,
-            targetSpeed,
-            targetAltitude,
-            isOnGround,
-            headingDeg
-        });
+        // 1. Barra minimalista de status FMA no topo
+        this.drawFMA(ctx, cx, 26, { apEnabled, isOnGround, isBraking });
 
-        // 2. Fita de Proa / Lubber Line no Topo Central
-        this.drawHeadingTape(ctx, cx, 68, headingDeg);
+        // 2. Fita de Proa minimalista no topo central
+        this.drawHeadingTape(ctx, cx, 52, headingDeg);
 
-        // 3. Arco de Roll / Bank Angle Indicator
-        this.drawRollScale(ctx, cx, cy - 35, rollDeg);
+        // 3. Arco de Roll delicado
+        this.drawRollScale(ctx, cx, cy - 28, rollDeg);
 
-        // 4. Horizonte Artificial e Pitch Ladder (Rotaciona com o Roll e translada com o Pitch)
+        // 4. Horizonte Artificial e Pitch Ladder leve com fade nas bordas
         this.drawPitchLadder(ctx, cx, cy, effectivePitchDeg, rollDeg);
 
-        // 5. Boresight Fixo (Símbolo de Asas / Waterbird do avião)
+        // 5. Boresight minimalista no centro
         this.drawBoresight(ctx, cx, cy);
 
-        // 6. Flight Path Vector (FPV - Vetor de Trajetória de Voo)
-        this.drawFlightPathVector(ctx, cx, cy, telemetry);
+        // 6. Flight Path Vector (FPV) + Seta de energia/aceleração
+        this.drawFlightPathVector(ctx, cx, cy, telemetry, this.speedTrend);
 
-        // 7. Fita de Velocidade à Esquerda (Airspeed Tape)
-        this.drawSpeedTape(ctx, cx - 210, cy, speedKmh, targetSpeed, this.speedTrend, isOnGround);
+        // 7. Fita de Velocidade à Esquerda (aberta e translúcida)
+        this.drawSpeedTape(ctx, cx - tapeOffset, cy, speedKmh, targetSpeed, this.speedTrend, apEnabled);
 
-        // 8. Fita de Altitude à Direita (Altitude Tape & VSI)
-        this.drawAltitudeTape(ctx, cx + 145, cy, altitudeMeters, targetAltitude, verticalSpeed, radioAltitude, isOnGround);
+        // 8. Indicador Minimalista de Potência (N1 / THR) abaixo da fita de velocidade
+        this.drawPowerIndicator(ctx, cx - tapeOffset, cy + 162, throttle, enginePower, isBraking);
 
-        // 9. Altímetro de Radar / Distância do Solo no Centro Inferior
-        this.drawRadioAltitude(ctx, cx, cy + 120, radioAltitude, isOnGround);
+        // 9. Fita de Altitude + VSI à Direita
+        this.drawAltitudeTape(ctx, cx + tapeOffset, cy, altitudeMeters, targetAltitude, verticalSpeed, apEnabled);
+
+        // 10. Altímetro de Radar no centro inferior (somente em baixa altitude)
+        this.drawRadioAltitude(ctx, cx, cy + 150, radioAltitude, isOnGround);
 
         ctx.restore();
     }
 
     /**
-     * Desenha a Barra de Modos de Voo (FMA - Flight Mode Annunciators)
+     * Barra FMA discreta e limpa
      */
     drawFMA(ctx, cx, topY, data) {
         ctx.save();
-        ctx.font = '700 11px "Outfit", monospace, sans-serif';
+        ctx.font = '500 10px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.fillStyle = this.hudSoft;
 
-        // Modo de Velocidade (Esquerda)
-        const spdMode = data.apEnabled ? 'MCP SPD' : 'MAN SPD';
-        ctx.fillText(spdMode, cx - 180, topY);
+        const thrMode = data.isBraking ? 'BRK' : (data.apEnabled ? 'A/T SPD' : 'MAN THR');
+        const latMode = data.apEnabled ? 'HDG' : 'ROLL';
+        const vertMode = data.isOnGround ? 'TOGA' : (data.apEnabled ? 'ALT' : 'FPA');
 
-        // Modo de Navegação Lateral (Centro-Esquerda)
-        const latMode = data.apEnabled ? 'HDG HOLD' : 'LNAV / ROLL';
-        ctx.fillText(latMode, cx - 70, topY);
+        ctx.fillText(thrMode, cx - 120, topY);
+        ctx.fillText(latMode, cx, topY);
+        ctx.fillText(vertMode, cx + 120, topY);
 
-        // Modo Vertical / Glideslope (Centro-Direita)
-        const vertMode = data.isOnGround ? 'TAKEOFF' : (data.apEnabled ? 'ALT HOLD' : 'PITCH / VNAV');
-        ctx.fillText(vertMode, cx + 70, topY);
-
-        // Status do Piloto Automático / Sistema (Direita)
-        const apText = data.apEnabled ? 'A/P 1+2 CMD' : 'FD / 2 CH';
-        ctx.fillStyle = data.apEnabled ? this.hudBright : this.hudPrimary;
-        ctx.fillText(apText, cx + 180, topY);
+        if (data.apEnabled) {
+            ctx.fillStyle = this.hudBright;
+            ctx.fillText('AP', cx + 178, topY);
+        }
 
         ctx.restore();
     }
 
     /**
-     * Desenha a Fita de Proa / Lubber Line no Topo
+     * Fita de Proa leve no topo central
      */
     drawHeadingTape(ctx, cx, y, headingDeg) {
         ctx.save();
-        const width = 220;
-        const pxPerDeg = 2.4;
+        const width = 200;
+        const pxPerDeg = 2.2;
 
-        // Caixa delimitadora superior
+        // Linha base sutil
+        ctx.strokeStyle = this.hudSoft;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.moveTo(cx - width / 2, y + 16);
-        ctx.lineTo(cx + width / 2, y + 16);
+        ctx.moveTo(cx - width / 2, y + 12);
+        ctx.lineTo(cx + width / 2, y + 12);
         ctx.stroke();
 
-        // Triângulo ponteiro central
+        // Ponteiro vazado central
+        ctx.strokeStyle = this.hudBright;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(cx, y + 16);
-        ctx.lineTo(cx - 5, y + 23);
-        ctx.lineTo(cx + 5, y + 23);
+        ctx.moveTo(cx, y + 13);
+        ctx.lineTo(cx - 4, y + 19);
+        ctx.lineTo(cx + 4, y + 19);
         ctx.closePath();
-        ctx.fill();
+        ctx.stroke();
 
-        // Clipping para fita de proa
+        // Ticks com fade lateral suave
         ctx.save();
         ctx.beginPath();
-        ctx.rect(cx - width / 2, y - 20, width, 40);
+        ctx.rect(cx - width / 2, y - 16, width, 30);
         ctx.clip();
 
-        const startDeg = Math.floor((headingDeg - 40) / 5) * 5;
-        const endDeg = Math.ceil((headingDeg + 40) / 5) * 5;
+        const startDeg = Math.floor((headingDeg - 45) / 5) * 5;
+        const endDeg = Math.ceil((headingDeg + 45) / 5) * 5;
+
+        ctx.font = '500 9.5px "Outfit", monospace, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
 
         for (let d = startDeg; d <= endDeg; d += 5) {
             const normalized = ((d % 360) + 360) % 360;
             const x = cx + (d - headingDeg) * pxPerDeg;
+            const edgeFade = 1 - clamp(Math.abs(x - cx) / (width * 0.52), 0, 1);
+            if (edgeFade <= 0.05) continue;
 
+            ctx.globalAlpha = edgeFade;
             const isMajor = d % 10 === 0;
-            const tickH = isMajor ? 8 : 4;
+            const tickH = isMajor ? 6 : 3;
 
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = isMajor ? 1.1 : 0.85;
             ctx.beginPath();
-            ctx.moveTo(x, y + 16);
-            ctx.lineTo(x, y + 16 - tickH);
+            ctx.moveTo(x, y + 12);
+            ctx.lineTo(x, y + 12 - tickH);
             ctx.stroke();
 
             if (isMajor) {
@@ -329,79 +340,70 @@ export default class AirlinerHUD {
                 else if (normalized === 180) label = 'S';
                 else if (normalized === 270) label = 'W';
 
-                ctx.font = '700 10px "Outfit", monospace, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'bottom';
-                ctx.fillText(label, x, y + 6);
+                ctx.fillStyle = this.hudPrimary;
+                ctx.fillText(label, x, y + 4);
             }
         }
-
         ctx.restore();
 
-        // Leitura digital da proa atual logo acima do ponteiro
-        ctx.font = '700 12px "Outfit", monospace, sans-serif';
+        // Leitura digital discreta da proa
+        ctx.font = '500 11px "Outfit", monospace, sans-serif';
+        ctx.fillStyle = this.hudBright;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(`${Math.round(headingDeg).toString().padStart(3, '0')}°`, cx, y + 26);
+        ctx.fillText(`${Math.round(headingDeg).toString().padStart(3, '0')}°`, cx, y + 22);
 
         ctx.restore();
     }
 
     /**
-     * Desenha o Arco de Roll / Bank Angle Indicator
+     * Arco de inclinação lateral (Roll Scale) fino e elegante
      */
     drawRollScale(ctx, cx, cy, rollDeg) {
         ctx.save();
-        const radius = 130;
+        const radius = 128;
 
-        // Arco do indicador de roll no topo
+        ctx.strokeStyle = this.hudFaint;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.arc(cx, cy, radius, -Math.PI * 0.72, -Math.PI * 0.28);
+        ctx.arc(cx, cy, radius, -Math.PI * 0.70, -Math.PI * 0.30);
         ctx.stroke();
 
-        // Ticks de inclinação (-60°, -45°, -30°, -20°, -10°, 0°, 10°, 20°, 30°, 45°, 60°)
-        const angles = [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60];
+        const angles = [-45, -30, -20, -10, 0, 10, 20, 30, 45];
+        ctx.strokeStyle = this.hudSoft;
         angles.forEach(deg => {
             const rad = (-90 + deg) * (Math.PI / 180);
-            const isMajor = Math.abs(deg) === 0 || Math.abs(deg) === 30 || Math.abs(deg) === 60;
-            const len = isMajor ? 9 : 5;
+            const isMajor = deg === 0 || Math.abs(deg) === 30;
+            const len = isMajor ? 7 : 4;
 
             const x1 = cx + Math.cos(rad) * radius;
             const y1 = cy + Math.sin(rad) * radius;
             const x2 = cx + Math.cos(rad) * (radius - len);
             const y2 = cy + Math.sin(rad) * (radius - len);
 
+            ctx.lineWidth = isMajor ? 1.15 : 0.85;
             ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.stroke();
-
-            // Marcador de 0° (Triângulo central apontando para cima)
-            if (deg === 0) {
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x1 - 4, y1 - 6);
-                ctx.lineTo(x1 + 4, y1 - 6);
-                ctx.closePath();
-                ctx.fill();
-            }
         });
 
-        // Ponteiro de Roll Dinâmico (Triângulo móvel que acompanha a inclinação das asas)
-        const pointerRad = (-90 - rollDeg) * (Math.PI / 180);
+        // Ponteiro triangular vazado de roll
+        const clampedRoll = clamp(rollDeg, -55, 55);
+        const pointerRad = (-90 - clampedRoll) * (Math.PI / 180);
         const px = cx + Math.cos(pointerRad) * (radius + 2);
         const py = cy + Math.sin(pointerRad) * (radius + 2);
 
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(pointerRad + Math.PI / 2);
+        ctx.strokeStyle = this.hudBright;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(-5, 8);
-        ctx.lineTo(5, 8);
+        ctx.lineTo(-4, 7);
+        ctx.lineTo(4, 7);
         ctx.closePath();
-        ctx.fillStyle = this.hudBright;
-        ctx.fill();
         ctx.stroke();
         ctx.restore();
 
@@ -409,113 +411,115 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Desenha a Pitch Ladder móvel e o Horizonte Artificial
+     * Horizonte Artificial e Pitch Ladder minimalista com fade vertical
      */
     drawPitchLadder(ctx, cx, cy, pitchDeg, rollDeg) {
         ctx.save();
 
-        // Delimitar a área de visualização central da pitch ladder
+        const clipHalfW = 148;
+        const clipHalfH = 138;
         ctx.beginPath();
-        ctx.rect(cx - 165, cy - 170, 330, 340);
+        ctx.rect(cx - clipHalfW, cy - clipHalfH, clipHalfW * 2, clipHalfH * 2);
         ctx.clip();
 
-        // Transladar para o centro e aplicar rotação do Roll
         ctx.translate(cx, cy);
         ctx.rotate((-rollDeg * Math.PI) / 180);
 
-        const pxPerDegree = 6.8; // Escala de pixels por grau de pitch
-        const pitchOffsetY = pitchDeg * pxPerDegree;
+        const pxPerDegree = 6.2;
+        const horizY = pitchDeg * pxPerDegree;
 
-        // 1. Linha do Horizonte (Pitch 0°)
-        const horizY = pitchOffsetY;
-        const horizGap = 45;
-        const horizLen = 130;
+        // 1. Linha do Horizonte (aberta no centro para não poluir a mira/pista)
+        const horizGap = 38;
+        const horizLen = 115;
+        const horizFade = 1 - clamp(Math.abs(horizY) / (clipHalfH * 1.05), 0, 1);
 
-        ctx.lineWidth = 2.0;
-        // Asa esquerda do horizonte
-        ctx.beginPath();
-        ctx.moveTo(-horizLen, horizY);
-        ctx.lineTo(-horizGap, horizY);
-        ctx.stroke();
+        if (horizFade > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = horizFade * 0.85;
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = 1.25;
+            ctx.beginPath();
+            ctx.moveTo(-horizLen, horizY);
+            ctx.lineTo(-horizGap, horizY);
+            ctx.moveTo(horizGap, horizY);
+            ctx.lineTo(horizLen, horizY);
+            ctx.stroke();
+            ctx.restore();
+        }
 
-        // Asa direita do horizonte
-        ctx.beginPath();
-        ctx.moveTo(horizGap, horizY);
-        ctx.lineTo(horizLen, horizY);
-        ctx.stroke();
-
-        // 2. Degraus de Pitch (-30° a +30° de 5 em 5 graus)
-        const pitchSteps = [-30, -25, -20, -15, -10, -5, 5, 10, 15, 20, 25, 30];
-        const rungWidth = 65;
-        const gap = 24;
-        const tipH = 7;
-
-        ctx.lineWidth = 1.6;
-        ctx.font = '700 11px "Outfit", monospace, sans-serif';
+        // 2. Degraus de Pitch espaçados (a cada 10° principais + marcas curtas de 5°)
+        const pitchSteps = [-30, -20, -10, -5, 5, 10, 20, 30];
+        ctx.font = '400 10px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         pitchSteps.forEach(deg => {
             const y = horizY - deg * pxPerDegree;
+            const fade = 1 - clamp(Math.abs(y) / (clipHalfH * 0.98), 0, 1);
+            if (fade <= 0.05) return;
+
             const isClimb = deg > 0;
-            const tipDir = isClimb ? 1 : -1; // Pernas viradas para o horizonte
+            const isMajor = Math.abs(deg) % 10 === 0;
+            const tipDir = isClimb ? 1 : -1;
+            const gap = isMajor ? 28 : 30;
+            const rungWidth = isMajor ? 56 : 42;
+            const tipH = isMajor ? 5 : 0;
 
-            if (isClimb) {
-                // Subida (Nariz para cima): Linha contínua
-                ctx.setLineDash([]);
-            } else {
-                // Descida (Nariz para baixo): Linha tracejada padrão aeronáutico
-                ctx.setLineDash([5, 4]);
-            }
+            ctx.save();
+            ctx.globalAlpha = fade * (isMajor ? 0.78 : 0.45);
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = isMajor ? 1.1 : 0.85;
+            ctx.setLineDash(isClimb ? [] : [4, 4]);
 
-            // Barra Esquerda
+            // Esquerda
             ctx.beginPath();
             ctx.moveTo(-gap, y);
             ctx.lineTo(-rungWidth, y);
-            ctx.lineTo(-rungWidth, y + tipH * tipDir);
+            if (tipH > 0) ctx.lineTo(-rungWidth, y + tipH * tipDir);
             ctx.stroke();
 
-            // Barra Direita
+            // Direita
             ctx.beginPath();
             ctx.moveTo(gap, y);
             ctx.lineTo(rungWidth, y);
-            ctx.lineTo(rungWidth, y + tipH * tipDir);
+            if (tipH > 0) ctx.lineTo(rungWidth, y + tipH * tipDir);
             ctx.stroke();
 
-            // Numeração de graus nas laterais (sem tracejado)
-            ctx.setLineDash([]);
-            const label = Math.abs(deg).toString();
-            ctx.fillText(label, -rungWidth - 14, y);
-            ctx.fillText(label, rungWidth + 14, y);
+            if (isMajor) {
+                ctx.setLineDash([]);
+                ctx.fillStyle = this.hudSoft;
+                const label = Math.abs(deg).toString();
+                ctx.fillText(label, -rungWidth - 12, y);
+                ctx.fillText(label, rungWidth + 12, y);
+            }
+            ctx.restore();
         });
 
         ctx.restore();
     }
 
     /**
-     * Desenha o Boresight (Símbolo de Asas / Waterbird fixo no centro da tela)
+     * Boresight leve (asas finas com ponto central discreto)
      */
     drawBoresight(ctx, cx, cy) {
         ctx.save();
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = 1.35;
         ctx.strokeStyle = this.hudBright;
 
-        // Asas do avião em formato de gaivota / chevron invertido (estilo Boeing / Collins)
         ctx.beginPath();
         // Asa esquerda
-        ctx.moveTo(cx - 32, cy - 2);
-        ctx.lineTo(cx - 14, cy - 2);
-        ctx.lineTo(cx - 6, cy + 5);
-        ctx.lineTo(cx, cy + 2);
+        ctx.moveTo(cx - 22, cy);
+        ctx.lineTo(cx - 8, cy);
+        ctx.lineTo(cx - 5, cy + 4);
         // Asa direita
-        ctx.lineTo(cx + 6, cy + 5);
-        ctx.lineTo(cx + 14, cy - 2);
-        ctx.lineTo(cx + 32, cy - 2);
+        ctx.moveTo(cx + 22, cy);
+        ctx.lineTo(cx + 8, cy);
+        ctx.lineTo(cx + 5, cy + 4);
         ctx.stroke();
 
-        // Ponto central de mira
+        // Ponto central mínimo
         ctx.beginPath();
-        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 1.4, 0, Math.PI * 2);
         ctx.fillStyle = this.hudBright;
         ctx.fill();
 
@@ -523,167 +527,179 @@ export default class AirlinerHUD {
     }
 
     /**
-     * Desenha o Flight Path Vector (FPV - Círculo com asas indicando a trajetória real do voo)
+     * Flight Path Vector (FPV) minimalista + Energy Caret (aceleração/desaceleração)
      */
-    drawFlightPathVector(ctx, cx, cy, telemetry) {
+    drawFlightPathVector(ctx, cx, cy, telemetry, speedTrend) {
         ctx.save();
 
         const speedKmh = telemetry.speedKmh || 0;
-        const vs = telemetry.verticalSpeed || 0; // m/s
+        const vs = telemetry.verticalSpeed || 0;
         const pitchRad = telemetry.pitch || 0;
         const visualAoA = telemetry.visualAoA || 0;
 
-        // Deslocamento vertical baseado no ângulo de subida/descida real (Glide Path Angle)
         let fpaDeg = 0;
         if (speedKmh > 30) {
             const speedMs = speedKmh / 3.6;
-            fpaDeg = (Math.asin(Math.max(-1, Math.min(1, -vs / speedMs)))) * (180 / Math.PI);
+            fpaDeg = Math.asin(clamp(-vs / speedMs, -1, 1)) * (180 / Math.PI);
         } else {
             fpaDeg = (pitchRad + visualAoA) * (180 / Math.PI);
         }
 
-        const pxPerDegree = 6.8;
+        const pxPerDegree = 6.2;
         const currentPitchDeg = (pitchRad + visualAoA) * (180 / Math.PI);
-        const pitchDiff = (currentPitchDeg - fpaDeg);
+        const pitchDiff = currentPitchDeg - fpaDeg;
 
-        // Deslocamento suave do FPV no centro
-        const fpvY = cy + THREE_Math_clamp(pitchDiff * pxPerDegree, -70, 70);
+        const fpvY = cy + clamp(pitchDiff * pxPerDegree, -72, 72);
         const fpvX = cx;
 
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 1.25;
         ctx.strokeStyle = this.hudBright;
 
-        // Círculo central com aleta vertical e asas horizontais
-        const r = 5.5;
+        const r = 4.5;
         ctx.beginPath();
         ctx.arc(fpvX, fpvY, r, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Aleta superior
         ctx.beginPath();
         ctx.moveTo(fpvX, fpvY - r);
-        ctx.lineTo(fpvX, fpvY - r - 5);
-        ctx.stroke();
-
-        // Asa esquerda
-        ctx.beginPath();
+        ctx.lineTo(fpvX, fpvY - r - 4);
         ctx.moveTo(fpvX - r, fpvY);
-        ctx.lineTo(fpvX - r - 10, fpvY);
+        ctx.lineTo(fpvX - r - 8, fpvY);
+        ctx.moveTo(fpvX + r, fpvY);
+        ctx.lineTo(fpvX + r + 8, fpvY);
         ctx.stroke();
 
-        // Asa direita
-        ctx.beginPath();
-        ctx.moveTo(fpvX + r, fpvY);
-        ctx.lineTo(fpvX + r + 10, fpvY);
-        ctx.stroke();
+        // Seta sutil de energia/aceleração à esquerda do FPV
+        if (Math.abs(speedTrend) > 2) {
+            const caretOffsetY = clamp(-speedTrend * 0.45, -18, 18);
+            const caretX = fpvX - r - 15;
+            const caretY = fpvY + caretOffsetY;
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = 1.1;
+            ctx.beginPath();
+            ctx.moveTo(caretX - 4, caretY - 3);
+            ctx.lineTo(caretX, caretY);
+            ctx.lineTo(caretX - 4, caretY + 3);
+            ctx.stroke();
+        }
 
         ctx.restore();
     }
 
     /**
-     * Desenha a Fita de Velocidade (Airspeed Tape) à Esquerda
+     * Fita de Velocidade (Airspeed Tape) leve e translúcida à esquerda
      */
-    drawSpeedTape(ctx, x, cy, currentSpeed, targetSpeed, speedTrend, isOnGround) {
+    drawSpeedTape(ctx, anchorX, cy, currentSpeed, targetSpeed, speedTrend, apEnabled) {
         ctx.save();
-        const tapeWidth = 65;
-        const tapeHeight = 280;
+        const tapeHeight = 236;
         const topY = cy - tapeHeight / 2;
         const bottomY = cy + tapeHeight / 2;
-        const pxPerUnit = 2.2; // 2.2px por km/h
+        const pxPerUnit = 2.0;
 
-        // 1. Linha vertical guia da fita
-        ctx.lineWidth = 1.8;
+        // Linha guia fina
+        ctx.strokeStyle = this.hudSoft;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.moveTo(x + tapeWidth, topY);
-        ctx.lineTo(x + tapeWidth, bottomY);
+        ctx.moveTo(anchorX, topY);
+        ctx.lineTo(anchorX, bottomY);
         ctx.stroke();
 
-        // 2. Ticks e numerações móveis com clipping
+        // Ticks com fade nas extremidades superior e inferior
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x - 20, topY, tapeWidth + 25, tapeHeight);
+        ctx.rect(anchorX - 75, topY, 86, tapeHeight);
         ctx.clip();
 
-        const startSpd = Math.max(0, Math.floor((currentSpeed - 70) / 10) * 10);
-        const endSpd = Math.ceil((currentSpeed + 70) / 10) * 10;
+        const startSpd = Math.max(0, Math.floor((currentSpeed - 65) / 10) * 10);
+        const endSpd = Math.ceil((currentSpeed + 65) / 10) * 10;
 
-        ctx.font = '700 12px "Outfit", monospace, sans-serif';
+        ctx.font = '400 10.5px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
 
         for (let spd = startSpd; spd <= endSpd; spd += 10) {
             const y = cy - (spd - currentSpeed) * pxPerUnit;
-            const isMajor = spd % 20 === 0;
-            const tickLen = isMajor ? 12 : 6;
+            const fade = 1 - clamp(Math.abs(y - cy) / (tapeHeight * 0.52), 0, 1);
+            if (fade <= 0.04) continue;
+            // Evitar sobreposição com o readout central
+            if (Math.abs(y - cy) < 14) continue;
 
+            ctx.save();
+            ctx.globalAlpha = fade * 0.85;
+            const isMajor = spd % 20 === 0;
+            const tickLen = isMajor ? 8 : 4;
+
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = isMajor ? 1.05 : 0.8;
             ctx.beginPath();
-            ctx.moveTo(x + tapeWidth, y);
-            ctx.lineTo(x + tapeWidth - tickLen, y);
+            ctx.moveTo(anchorX, y);
+            ctx.lineTo(anchorX - tickLen, y);
             ctx.stroke();
 
             if (isMajor) {
-                ctx.fillText(spd.toString(), x + tapeWidth - 16, y);
+                ctx.fillStyle = this.hudSoft;
+                ctx.fillText(spd.toString(), anchorX - 12, y);
             }
+            ctx.restore();
         }
 
-        // Faixa de Stall / Perigo de Velocidade Baixa (< 185 km/h)
+        // Marcação discreta de stall (< 185 km/h)
         const stallSpeed = 185;
-        if (stallSpeed > currentSpeed - 80) {
+        if (stallSpeed > currentSpeed - 70) {
             const stallY = cy - (stallSpeed - currentSpeed) * pxPerUnit;
-            ctx.fillStyle = this.colorMode === 'red' ? 'rgba(255, 20, 20, 0.35)' : 'rgba(255, 60, 60, 0.25)';
-            ctx.fillRect(x + tapeWidth - 6, Math.max(topY, stallY), 6, bottomY - Math.max(topY, stallY));
-
-            ctx.strokeStyle = '#ff3333';
+            ctx.strokeStyle = 'rgba(255, 85, 85, 0.72)';
+            ctx.lineWidth = 2.0;
+            ctx.setLineDash([4, 3]);
             ctx.beginPath();
-            ctx.moveTo(x + tapeWidth - 6, Math.max(topY, stallY));
-            ctx.lineTo(x + tapeWidth, Math.max(topY, stallY));
+            ctx.moveTo(anchorX - 2, Math.max(topY, stallY));
+            ctx.lineTo(anchorX - 2, bottomY);
             ctx.stroke();
-            ctx.strokeStyle = this.hudPrimary;
+            ctx.setLineDash([]);
         }
 
-        // Bug de Velocidade Alvo (Target Speed Bug / MCP SPD)
-        if (targetSpeed > currentSpeed - 70 && targetSpeed < currentSpeed + 70) {
+        // Bug de Velocidade Alvo (somente quando Piloto Automático ativo)
+        if (apEnabled && targetSpeed > currentSpeed - 65 && targetSpeed < currentSpeed + 65) {
             const bugY = cy - (targetSpeed - currentSpeed) * pxPerUnit;
-            ctx.fillStyle = this.hudBright;
+            ctx.strokeStyle = this.hudBright;
+            ctx.lineWidth = 1.25;
             ctx.beginPath();
-            ctx.moveTo(x + tapeWidth, bugY);
-            ctx.lineTo(x + tapeWidth - 10, bugY - 6);
-            ctx.lineTo(x + tapeWidth - 10, bugY + 6);
+            ctx.moveTo(anchorX, bugY);
+            ctx.lineTo(anchorX - 7, bugY - 4);
+            ctx.lineTo(anchorX - 7, bugY + 4);
             ctx.closePath();
-            ctx.fill();
+            ctx.stroke();
         }
 
-        // Vetor de Tendência de Velocidade (Speed Trend Vector)
-        if (Math.abs(speedTrend) > 1.5) {
-            const trendY = cy - THREE_Math_clamp(speedTrend * pxPerUnit, -90, 90);
+        // Vetor de tendência de velocidade (fino e limpo)
+        if (Math.abs(speedTrend) > 2) {
+            const trendY = cy - clamp(speedTrend * pxPerUnit, -80, 80);
             ctx.strokeStyle = this.hudBright;
-            ctx.lineWidth = 2.2;
+            ctx.lineWidth = 1.3;
             ctx.beginPath();
-            ctx.moveTo(x + tapeWidth + 3, cy);
-            ctx.lineTo(x + tapeWidth + 3, trendY);
-            // Seta
+            ctx.moveTo(anchorX + 3, cy);
+            ctx.lineTo(anchorX + 3, trendY);
             const arrowDir = speedTrend > 0 ? -1 : 1;
-            ctx.lineTo(x + tapeWidth - 1, trendY - 4 * arrowDir);
-            ctx.moveTo(x + tapeWidth + 3, trendY);
-            ctx.lineTo(x + tapeWidth + 7, trendY - 4 * arrowDir);
+            ctx.lineTo(anchorX, trendY - 3.5 * arrowDir);
+            ctx.moveTo(anchorX + 3, trendY);
+            ctx.lineTo(anchorX + 6, trendY - 3.5 * arrowDir);
             ctx.stroke();
-            ctx.lineWidth = 1.8;
-            ctx.strokeStyle = this.hudPrimary;
         }
 
         ctx.restore();
 
-        // 3. Caixa de Leitura Digital da Velocidade Atual (Pointer Box)
-        const boxH = 26;
-        const boxW = 55;
-        const boxX = x + tapeWidth - boxW - 8;
+        // Caixa translúcida e leve do valor atual
+        const boxH = 24;
+        const boxW = 48;
+        const boxX = anchorX - boxW - 7;
         const boxY = cy - boxH / 2;
 
         ctx.fillStyle = this.hudBoxBg;
+        ctx.strokeStyle = this.hudBright;
+        ctx.lineWidth = 1.15;
         ctx.beginPath();
         ctx.moveTo(boxX, boxY);
         ctx.lineTo(boxX + boxW, boxY);
-        ctx.lineTo(boxX + boxW + 8, cy); // Ponta apontando para a fita
+        ctx.lineTo(boxX + boxW + 6, cy);
         ctx.lineTo(boxX + boxW, boxY + boxH);
         ctx.lineTo(boxX, boxY + boxH);
         ctx.closePath();
@@ -691,185 +707,246 @@ export default class AirlinerHUD {
         ctx.stroke();
 
         ctx.fillStyle = this.hudBright;
-        ctx.font = '700 16px "Outfit", monospace, sans-serif';
+        ctx.font = '500 14px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(Math.round(currentSpeed).toString(), boxX + boxW / 2, cy);
 
-        // 4. Mostrador de Velocidade Alvo no Topo da Fita (ex: 360)
-        ctx.font = '700 13px "Outfit", monospace, sans-serif';
-        ctx.fillStyle = this.hudPrimary;
-        ctx.textAlign = 'left';
-        ctx.fillText(`IAS ${Math.round(targetSpeed)}`, x - 10, topY - 10);
+        // Cabeçalho discreto
+        ctx.font = '400 10px "Outfit", monospace, sans-serif';
+        ctx.fillStyle = this.hudSoft;
+        ctx.textAlign = 'right';
+        ctx.fillText(apEnabled ? `SPD ${Math.round(targetSpeed)}` : 'KM/H', anchorX, topY - 12);
 
         ctx.restore();
     }
 
     /**
-     * Desenha a Fita de Altitude (Altitude Tape & VSI) à Direita
+     * Indicador minimalista de Potência (N1 / THR) sob a fita de velocidade
      */
-    drawAltitudeTape(ctx, x, cy, currentAltitude, targetAltitude, verticalSpeed, radioAltitude, isOnGround) {
+    drawPowerIndicator(ctx, anchorX, y, throttle, enginePower, isBraking) {
         ctx.save();
-        const tapeWidth = 65;
-        const tapeHeight = 280;
-        const topY = cy - tapeHeight / 2;
-        const bottomY = cy + tapeHeight / 2;
-        const pxPerUnit = 0.55; // 0.55px por metro
+        const barW = 54;
+        const barX = anchorX - barW;
+        const n1Pct = Math.round(clamp(enginePower, 0, 1) * 100);
+        const thrRatio = clamp(throttle, 0, 1);
+        const n1Ratio = clamp(enginePower, 0, 1);
 
-        // 1. Linha vertical guia da fita
-        ctx.lineWidth = 1.8;
+        // Rótulo e percentual
+        ctx.font = '500 10.5px "Outfit", monospace, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isBraking ? this.hudAlert : (n1Pct >= 92 ? this.hudWarning : this.hudBright);
+        ctx.fillText(isBraking ? 'BRK' : `N1 ${n1Pct}%`, anchorX, y - 8);
+
+        // Trilho fino da barra de potência
+        ctx.strokeStyle = this.hudFaint;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
-        ctx.moveTo(x, topY);
-        ctx.lineTo(x, bottomY);
+        ctx.moveTo(barX, y + 4);
+        ctx.lineTo(barX + barW, y + 4);
         ctx.stroke();
 
-        // 2. Ticks e numerações com clipping
+        // Preenchimento fino da potência atual N1
+        ctx.strokeStyle = n1Pct >= 92 ? this.hudWarning : this.hudBright;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(barX, y + 4);
+        ctx.lineTo(barX + barW * n1Ratio, y + 4);
+        ctx.stroke();
+
+        // Marcador vertical da posição da manete alvo (Throttle)
+        const targetX = barX + barW * thrRatio;
+        ctx.strokeStyle = this.hudPrimary;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(targetX, y);
+        ctx.lineTo(targetX, y + 8);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    /**
+     * Fita de Altitude (Altitude Tape & VSI) leve à direita
+     */
+    drawAltitudeTape(ctx, anchorX, cy, currentAltitude, targetAltitude, verticalSpeed, apEnabled) {
+        ctx.save();
+        const tapeHeight = 236;
+        const topY = cy - tapeHeight / 2;
+        const bottomY = cy + tapeHeight / 2;
+        const pxPerUnit = 0.52;
+
+        // Linha guia fina
+        ctx.strokeStyle = this.hudSoft;
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(anchorX, topY);
+        ctx.lineTo(anchorX, bottomY);
+        ctx.stroke();
+
+        // Ticks com fade nas extremidades
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x - 5, topY, tapeWidth + 30, tapeHeight);
+        ctx.rect(anchorX - 10, topY, 86, tapeHeight);
         ctx.clip();
 
-        const startAlt = Math.max(0, Math.floor((currentAltitude - 250) / 20) * 20);
-        const endAlt = Math.ceil((currentAltitude + 250) / 20) * 20;
+        const startAlt = Math.max(0, Math.floor((currentAltitude - 240) / 20) * 20);
+        const endAlt = Math.ceil((currentAltitude + 240) / 20) * 20;
 
-        ctx.font = '700 12px "Outfit", monospace, sans-serif';
+        ctx.font = '400 10.5px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
 
         for (let alt = startAlt; alt <= endAlt; alt += 20) {
             const y = cy - (alt - currentAltitude) * pxPerUnit;
-            const isMajor = alt % 100 === 0;
-            const tickLen = isMajor ? 12 : 6;
+            const fade = 1 - clamp(Math.abs(y - cy) / (tapeHeight * 0.52), 0, 1);
+            if (fade <= 0.04) continue;
+            if (Math.abs(y - cy) < 14) continue;
 
+            ctx.save();
+            ctx.globalAlpha = fade * 0.85;
+            const isMajor = alt % 100 === 0;
+            const tickLen = isMajor ? 8 : 4;
+
+            ctx.strokeStyle = this.hudPrimary;
+            ctx.lineWidth = isMajor ? 1.05 : 0.8;
             ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + tickLen, y);
+            ctx.moveTo(anchorX, y);
+            ctx.lineTo(anchorX + tickLen, y);
             ctx.stroke();
 
             if (isMajor) {
-                ctx.fillText(alt.toString(), x + 16, y);
+                ctx.fillStyle = this.hudSoft;
+                ctx.fillText(alt.toString(), anchorX + 12, y);
             }
+            ctx.restore();
         }
 
-        // Bug de Altitude Alvo (Target Altitude Bug / MCP ALT)
-        if (targetAltitude > currentAltitude - 240 && targetAltitude < currentAltitude + 240) {
+        // Bug de Altitude Alvo (quando Piloto Automático ativo)
+        if (apEnabled && targetAltitude > currentAltitude - 230 && targetAltitude < currentAltitude + 230) {
             const bugY = cy - (targetAltitude - currentAltitude) * pxPerUnit;
-            ctx.fillStyle = this.hudBright;
+            ctx.strokeStyle = this.hudBright;
+            ctx.lineWidth = 1.25;
             ctx.beginPath();
-            ctx.moveTo(x, bugY);
-            ctx.lineTo(x + 10, bugY - 6);
-            ctx.lineTo(x + 10, bugY + 6);
+            ctx.moveTo(anchorX, bugY);
+            ctx.lineTo(anchorX + 7, bugY - 4);
+            ctx.lineTo(anchorX + 7, bugY + 4);
             ctx.closePath();
-            ctx.fill();
+            ctx.stroke();
         }
 
         ctx.restore();
 
-        // 3. Caixa de Leitura Digital da Altitude Atual (Pointer Box)
-        const boxH = 26;
-        const boxW = 60;
-        const boxX = x + 8;
+        // Caixa translúcida de altitude atual
+        const boxH = 24;
+        const boxW = 54;
+        const boxX = anchorX + 7;
         const boxY = cy - boxH / 2;
 
         ctx.fillStyle = this.hudBoxBg;
+        ctx.strokeStyle = this.hudBright;
+        ctx.lineWidth = 1.15;
         ctx.beginPath();
         ctx.moveTo(boxX, boxY);
         ctx.lineTo(boxX + boxW, boxY);
         ctx.lineTo(boxX + boxW, boxY + boxH);
         ctx.lineTo(boxX, boxY + boxH);
-        ctx.lineTo(boxX - 8, cy); // Ponta apontando para a esquerda
+        ctx.lineTo(boxX - 6, cy);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = this.hudBright;
-        ctx.font = '700 16px "Outfit", monospace, sans-serif';
+        ctx.font = '500 14px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(Math.round(currentAltitude).toString().padStart(4, '0'), boxX + boxW / 2, cy);
+        ctx.fillText(Math.round(currentAltitude).toString(), boxX + boxW / 2, cy);
 
-        // 4. Mostrador de Altitude Alvo no Topo da Fita (ex: 3000)
-        ctx.font = '700 13px "Outfit", monospace, sans-serif';
-        ctx.fillStyle = this.hudPrimary;
-        ctx.textAlign = 'right';
-        ctx.fillText(`ALT ${Math.round(targetAltitude)}`, x + tapeWidth + 10, topY - 10);
+        // Cabeçalho discreto
+        ctx.font = '400 10px "Outfit", monospace, sans-serif';
+        ctx.fillStyle = this.hudSoft;
+        ctx.textAlign = 'left';
+        ctx.fillText(apEnabled ? `ALT ${Math.round(targetAltitude)}` : 'ALT M', anchorX, topY - 12);
 
-        // 5. Escala de Velocidade Vertical (VSI - Vertical Speed Indicator) à extrema direita
-        this.drawVSI(ctx, x + tapeWidth + 24, cy, verticalSpeed);
+        // VSI compacto e leve ao lado direito
+        this.drawVSI(ctx, anchorX + 68, cy, verticalSpeed);
 
         ctx.restore();
     }
 
     /**
-     * Desenha o Indicador de Razão de Subida/Descida (VSI)
+     * Indicador de Razão de Subida/Descida (VSI) minimalista
      */
     drawVSI(ctx, vsiX, cy, verticalSpeed) {
         ctx.save();
-        const vsiH = 140;
+        const vsiH = 120;
 
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = this.hudFaint;
+        ctx.lineWidth = 1.0;
         ctx.beginPath();
         ctx.moveTo(vsiX, cy - vsiH / 2);
         ctx.lineTo(vsiX, cy + vsiH / 2);
         ctx.stroke();
 
-        // Ticks de VSI (0, ±2, ±5, ±10 m/s)
-        const vsiMarks = [-10, -5, -2, 0, 2, 5, 10];
+        const vsiMarks = [-10, -5, 0, 5, 10];
+        ctx.strokeStyle = this.hudSoft;
         vsiMarks.forEach(val => {
             const vy = cy - (val / 10) * (vsiH / 2);
             ctx.beginPath();
             ctx.moveTo(vsiX, vy);
-            ctx.lineTo(vsiX + 5, vy);
+            ctx.lineTo(vsiX + (val === 0 ? 6 : 3.5), vy);
             ctx.stroke();
         });
 
-        // Ponteiro / Agulha de Razão de Subida
-        const clampedVS = THREE_Math_clamp(-verticalSpeed, -10, 10);
+        // Barra fina do centro até a razão atual
+        const clampedVS = clamp(-verticalSpeed, -10, 10);
         const ptrY = cy - (clampedVS / 10) * (vsiH / 2);
 
-        ctx.fillStyle = this.hudBright;
+        ctx.strokeStyle = this.hudBright;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.moveTo(vsiX, ptrY);
-        ctx.lineTo(vsiX + 8, ptrY - 4);
-        ctx.lineTo(vsiX + 8, ptrY + 4);
-        ctx.closePath();
+        ctx.moveTo(vsiX, cy);
+        ctx.lineTo(vsiX, ptrY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(vsiX, ptrY, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = this.hudBright;
         ctx.fill();
 
         ctx.restore();
     }
 
     /**
-     * Desenha a Altitude de Radar (Distância real do solo) no centro inferior
+     * Altímetro de Radar discreto no centro inferior
      */
     drawRadioAltitude(ctx, cx, y, radioAltitude, isOnGround) {
-        if (radioAltitude > 1200) return; // Só exibe em aproximação e pouso (< 1200m)
+        if (radioAltitude > 800) return;
 
         ctx.save();
-        ctx.font = '700 15px "Outfit", monospace, sans-serif';
+        ctx.font = '500 13px "Outfit", monospace, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         const displayAlt = isOnGround ? 0 : Math.round(radioAltitude);
-        ctx.fillText(`${displayAlt} R`, cx, y);
+        ctx.fillStyle = displayAlt <= 30 && !isOnGround ? this.hudWarning : this.hudPrimary;
+        ctx.fillText(`RA ${displayAlt}m`, cx, y);
 
-        // Subtítulo de auxílio ao pouso
-        if (displayAlt <= 50 && !isOnGround) {
+        if (displayAlt <= 40 && !isOnGround) {
             ctx.fillStyle = this.hudBright;
-            ctx.font = '700 12px "Outfit", monospace, sans-serif';
-            ctx.fillText('FLARE / TOUCHDOWN', cx, y + 20);
+            ctx.font = '500 10px "Outfit", monospace, sans-serif';
+            ctx.fillText('FLARE', cx, y + 16);
         }
 
         ctx.restore();
     }
 }
 
-/**
- * Utilitários matemáticos auxiliares
- */
-function THREE_Math_lerp(x, y, t) {
+function lerp(x, y, t) {
     return (1 - t) * x + t * y;
 }
 
-function THREE_Math_clamp(val, min, max) {
+function clamp(val, min, max) {
     return Math.max(min, Math.min(max, val));
 }
