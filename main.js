@@ -8,7 +8,8 @@ import { createPlayerPlane } from './planeFactory.js?v=1.0.8';
 import CityManager from './city.js?v=1.0.4';
 import City2Manager from './city2.js?v=1.0.4';
 import Autopilot from './autopilot.js?v=1.0.7';
-import AirlinerHUD from './airlinerHud.js?v=1.0.7';
+import AirlinerHUD from './airlinerHud.js?v=1.0.8';
+import CombatManager from './combatMode.js?v=1.0.0';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -353,9 +354,10 @@ class FlightSimulator {
 
             this.cameraShake = { frames: 0, totalFrames: 0, intensity: 0 };
 
-            // Instanciar o Piloto Automático e o HUD de Passageiros
+            // Instanciar o Piloto Automático, HUD de Passageiros e Modo Missão/Combate
             this.autopilot = new Autopilot(this);
             this.airlinerHud = new AirlinerHUD(this);
+            this.combatManager = new CombatManager(this);
 
             this.updateHealthBar();
             this.updateHUD();
@@ -1465,7 +1467,8 @@ class FlightSimulator {
                 targetAltitude: this.autopilot ? this.autopilot.targetAltitude : 500,
                 apEnabled: this.autopilot ? this.autopilot.enabled : false,
                 isOnGround: this._isOnGround,
-                cameraMode: this.cameraMode
+                cameraMode: this.cameraMode,
+                combatData: (this.combatManager && this.combatManager.enabled) ? this.combatManager.getHudOverlayData(this.camera) : null
             });
         }
 
@@ -1618,11 +1621,34 @@ class FlightSimulator {
             });
         }
 
+        const optModeFree = document.getElementById('optModeFree');
+        const optModeCombat = document.getElementById('optModeCombat');
+        if (optModeFree && optModeCombat) {
+            optModeFree.addEventListener('click', () => {
+                const radio = optModeFree.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+                optModeFree.classList.add('active');
+                optModeCombat.classList.remove('active');
+            });
+            optModeCombat.addEventListener('click', () => {
+                const radio = optModeCombat.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
+                optModeCombat.classList.add('active');
+                optModeFree.classList.remove('active');
+            });
+        }
+
         if (this.btnStartGame) {
             this.btnStartGame.addEventListener('click', () => {
                 const selectedRadio = document.querySelector('input[name="graphicsQuality"]:checked');
                 const qualityMode = selectedRadio ? selectedRadio.value : 'high';
                 this.setQualityMode(qualityMode);
+
+                const selectedGameMode = document.querySelector('input[name="gameMode"]:checked');
+                const gameMode = selectedGameMode ? selectedGameMode.value : 'free';
+                if (this.combatManager) {
+                    this.combatManager.setEnabled(gameMode === 'combat');
+                }
 
                 if (this.startScreen) {
                     this.startScreen.classList.remove('visible');
@@ -1739,6 +1765,46 @@ class FlightSimulator {
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(-rw / 2, -rl / 2, rw, rl);
+                ctx.restore();
+            }
+        }
+
+        // 3b. Alvos do Modo Missão / Combate no Radar (Caminhões e Caças Inimigos)
+        if (this.combatManager && this.combatManager.enabled) {
+            // Caminhões na estrada (quadrados âmbar/laranja)
+            for (const truck of this.combatManager.trucks) {
+                if (!truck.alive) continue;
+                const vx = truck.position.x - planePos.x;
+                const vz = truck.position.z - planePos.z;
+                const forwardDist = vx * sinT + vz * cosT;
+                const rightDist = -vx * cosT + vz * sinT;
+                const tx = cx + rightDist * scale;
+                const ty = cy - forwardDist * scale;
+
+                ctx.fillStyle = truck.isAntiAir ? '#ff9f43' : '#ffd166';
+                ctx.fillRect(tx - 2.5, ty - 2.5, 5, 5);
+            }
+
+            // Caças inimigos (triângulos vermelhos)
+            for (const enemy of this.combatManager.enemies) {
+                if (!enemy.alive) continue;
+                const vx = enemy.position.x - planePos.x;
+                const vz = enemy.position.z - planePos.z;
+                const forwardDist = vx * sinT + vz * cosT;
+                const rightDist = -vx * cosT + vz * sinT;
+                const ex = cx + rightDist * scale;
+                const ey = cy - forwardDist * scale;
+
+                ctx.save();
+                ctx.translate(ex, ey);
+                ctx.rotate(-(enemy.yaw - theta));
+                ctx.fillStyle = '#ff3b3b';
+                ctx.beginPath();
+                ctx.moveTo(0, -5);
+                ctx.lineTo(4, 4);
+                ctx.lineTo(-4, 4);
+                ctx.closePath();
+                ctx.fill();
                 ctx.restore();
             }
         }
@@ -2795,12 +2861,18 @@ class FlightSimulator {
             this.planeState.speed = 0;
         }
 
+        // Atualizar Modo Missão / Combate (Comboios, Caças e Armamento)
+        if (this.combatManager && this.combatManager.enabled) {
+            this.combatManager.update(frameDt);
+            this.combatManager.updateScreenMarkers(this.camera);
+        }
+
         // --- Atualizar Yaw, Pitch e Roll baseando-se nos controles ---
-        const turnSpeed = 0.005;
-        const pitchSpeed = 0.003;
+        const turnSpeed = 0.009;
+        const pitchSpeed = 0.006;
         const maxPitch = 0.9;
         const maxRoll = 0.65;
-        const rollLerpFactor = 0.025;
+        const rollLerpFactor = 0.045;
 
         let speedKmh = this.planeState.speed * 30;
         let targetRoll = 0;
@@ -2854,9 +2926,9 @@ class FlightSimulator {
             }
         }
 
-        // Consumo de Combustível proporcional à potência das turbinas
+        // Consumo de Combustível proporcional à potência das turbinas (~3.6x mais autonomia)
         if (this.planeState.fuel > 0 && (this.planeState.enginePower > 0.01 || this.planeState.speed > 0.1)) {
-            const burnRate = (0.002 + (this.planeState.enginePower || 0) * 0.016) * (frameDt * 60);
+            const burnRate = (0.0005 + (this.planeState.enginePower || 0) * 0.0045) * (frameDt * 60);
             this.planeState.fuel = Math.max(0, this.planeState.fuel - burnRate);
         } else if (this.planeState.fuel <= 0) {
             // Combustível esgotado: motores desligam e o avião plana/perde altitude

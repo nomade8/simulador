@@ -81,6 +81,18 @@
         <span id="cardinalValue" class="cardinal">N</span>
     </div>
 
+    <!-- HUD de Missão / Combate (visível apenas no Modo Missão/Combate) -->
+    <div id="missionHud" class="mission-hud" style="display: none;">
+        <div class="mission-pill wave"><span id="missionWave">ONDA 1</span></div>
+        <div class="mission-pill score">SCORE <strong id="missionScore">0</strong></div>
+        <div class="mission-pill">🚚 <strong id="missionTrucks">0</strong></div>
+        <div class="mission-pill">✈️ <strong id="missionPlanes">0</strong></div>
+        <div class="mission-divider"></div>
+        <div class="mission-pill ammo">🔫 <strong id="missionAmmo">240</strong></div>
+        <div class="mission-pill ammo">💣 <strong id="missionBombs">8</strong> <span class="key-tag">E</span></div>
+        <div class="mission-pill ammo">🚀 <strong id="missionMissiles">6</strong> <span class="key-tag">C</span></div>
+    </div>
+
     <!-- Seletor de Horário do Dia no HUD -->
     <div id="timeOfDaySelector" class="tod-hud">
         <span class="tod-label">HORÁRIO DO DIA (T)</span>
@@ -106,6 +118,8 @@
 
     <!-- Toast de Notificação de Mudança de Horário e Vento -->
     <div id="todToast" class="tod-toast">☀️ HORÁRIO: DIA</div>
+
+    <canvas id="combatOverlayCanvas" style="position: fixed; inset: 0; pointer-events: none; z-index: 48; display: none;"></canvas>
 
     <div id="crosshair">十</div>
 
@@ -239,6 +253,30 @@
                         <div class="ctrl-item"><kbd>P</kbd> <span>Piloto Automático</span></div>
                         <div class="ctrl-item"><kbd>H</kbd> <span>HUD Avião Comercial</span></div>
                         <div class="ctrl-item"><kbd>R</kbd> <span>Replay dos Últimos 20s</span></div>
+                        <div class="ctrl-item"><kbd>Q</kbd> / <kbd>CLIQUE ESQ</kbd> <span>Canhão (Combate)</span></div>
+                        <div class="ctrl-item"><kbd>E</kbd> <span>Soltar Bomba (Combate)</span></div>
+                        <div class="ctrl-item"><kbd>C</kbd> / <kbd>CLIQUE DIR</kbd> <span>Míssil Guiado (Combate)</span></div>
+                    </div>
+                </div>
+
+                <!-- Seção de Seleção de Modo de Jogo -->
+                <div class="info-card mode-card">
+                    <h3>🎯 MODO DE JOGO</h3>
+                    <div class="quality-options">
+                        <label class="quality-option active" id="optModeFree">
+                            <input type="radio" name="gameMode" value="free" checked>
+                            <div class="opt-content">
+                                <span class="opt-title">✈️ VOO LIVRE (CIVIL)</span>
+                                <span class="opt-desc">Simulação pura de decolagem, navegação e pouso sem combate.</span>
+                            </div>
+                        </label>
+                        <label class="quality-option" id="optModeCombat">
+                            <input type="radio" name="gameMode" value="combat">
+                            <div class="opt-content">
+                                <span class="opt-title">🔥 MODO MISSÃO / COMBATE</span>
+                                <span class="opt-desc">Comboios de caminhões na estrada + caças inimigos! Pouse na pista para rearmar.</span>
+                            </div>
+                        </label>
                     </div>
                 </div>
 

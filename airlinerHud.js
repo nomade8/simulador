@@ -248,6 +248,63 @@ export default class AirlinerHUD {
         // 10. Altímetro de Radar no centro inferior (somente em baixa altitude)
         this.drawRadioAltitude(ctx, cx, cy + 150, radioAltitude, isOnGround);
 
+        // 11. Sobreposição de Combate (Lock-on de Caças + Mira CCIP de Bomba)
+        if (telemetry.combatData) {
+            this.drawCombatOverlay(ctx, w, h, telemetry.combatData);
+        }
+
+        ctx.restore();
+    }
+
+    /**
+     * Desenha trava de alvo aéreo (Lock-on) e mira preditiva de bomba (CCIP) no HUD
+     */
+    drawCombatOverlay(ctx, w, h, combatData) {
+        ctx.save();
+        const rect = this.canvas.getBoundingClientRect();
+        const viewW = window.innerWidth;
+        const viewH = window.innerHeight;
+
+        const mapToHud = (nx, ny) => ({
+            x: (nx * viewW - rect.left) * (w / (rect.width || w)),
+            y: (ny * viewH - rect.top) * (h / (rect.height || h))
+        });
+
+        // 1. Quadrado de Trava (Lock-on) no caça inimigo mais próximo
+        if (combatData.lockedScreenPos) {
+            const pt = mapToHud(combatData.lockedScreenPos.nx, combatData.lockedScreenPos.ny);
+            if (pt.x > 10 && pt.x < w - 10 && pt.y > 10 && pt.y < h - 10) {
+                const s = 14;
+                ctx.strokeStyle = this.hudAlert;
+                ctx.lineWidth = 1.4;
+                ctx.strokeRect(pt.x - s, pt.y - s, s * 2, s * 2);
+
+                ctx.font = '500 10px "Outfit", monospace, sans-serif';
+                ctx.fillStyle = this.hudAlert;
+                ctx.textAlign = 'center';
+                ctx.fillText(`LOCK ${combatData.lockedDist}m`, pt.x, pt.y - s - 8);
+            }
+        }
+
+        // 2. Retículo CCIP de impacto da bomba no solo
+        if (combatData.ccipScreenPos) {
+            const pt = mapToHud(combatData.ccipScreenPos.nx, combatData.ccipScreenPos.ny);
+            if (pt.x > 10 && pt.x < w - 10 && pt.y > 10 && pt.y < h - 10) {
+                ctx.strokeStyle = this.hudWarning;
+                ctx.lineWidth = 1.15;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 11, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+                ctx.fillStyle = this.hudWarning;
+                ctx.fill();
+            }
+        }
+
         ctx.restore();
     }
 

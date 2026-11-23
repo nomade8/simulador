@@ -878,7 +878,7 @@ export function createEnemyInstancedPlanes(scene, maxEnemies) {
     const parts = getPlanePartDefinitions(false);
     const instancedMeshes = {};
     const dummyRoot = new THREE.Object3D();
-    dummyRoot.scale.setScalar(PLANE_SCALE);
+    dummyRoot.scale.setScalar(PLANE_SCALE * 2.6);
 
     parts.forEach((part) => {
         const material = part.material.clone();
@@ -905,6 +905,7 @@ export function createEnemyInstancedPlanes(scene, maxEnemies) {
 
 export function updateEnemyInstance(instancedMeshes, dummyRoot, instanceIndex, position, rotation) {
     dummyRoot.position.copy(position);
+    dummyRoot.rotation.order = 'YXZ';
     dummyRoot.rotation.copy(rotation);
     dummyRoot.updateMatrix();
 
