@@ -9,7 +9,7 @@ import CityManager from './city.js?v=1.0.4';
 import City2Manager from './city2.js?v=1.0.4';
 import Autopilot from './autopilot.js?v=1.0.7';
 import AirlinerHUD from './airlinerHud.js?v=1.0.8';
-import CombatManager from './combatMode.js?v=1.0.0';
+import CombatManager from './combatMode.js?v=1.0.2';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;

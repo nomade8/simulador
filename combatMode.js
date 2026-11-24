@@ -18,9 +18,9 @@ export default class CombatManager {
         this.planesDestroyed = 0;
 
         // Armamento do jogador
-        this.maxAmmo = 240;
+        this.maxAmmo = 1000;
         this.maxBombs = 8;
-        this.maxMissiles = 6;
+        this.maxMissiles = 8;
         this.ammo = this.maxAmmo;
         this.bombs = this.maxBombs;
         this.missiles = this.maxMissiles;
@@ -43,12 +43,27 @@ export default class CombatManager {
         this.enemyBullets = [];
         this.bombProjectiles = [];
         this.missileProjectiles = [];
+        this.weaponEffects = [];
+        this.weaponResources = null;
+        this.weaponAudio = null;
+        this.flightTuning = {
+            patrolSpeed: 25,
+            attackSpeed: 34,
+            minSpeed: 22,
+            maxSpeed: 40,
+            maxBank: 0.9,
+            turnAcceleration: 15,
+            rollResponse: 2.2,
+            pitchResponse: 1.8
+        };
 
         // Raycaster reutilizável para altura do terreno
         this._raycaster = new THREE.Raycaster();
         this._down = new THREE.Vector3(0, -1, 0);
         this._tempVec = new THREE.Vector3();
         this._tempVec2 = new THREE.Vector3();
+        this._shotSegment = new THREE.Line3();
+        this._closestPoint = new THREE.Vector3();
 
         this.setupWeaponControls();
     }
@@ -95,6 +110,11 @@ export default class CombatManager {
         [...this.bullets, ...this.enemyBullets, ...this.bombProjectiles, ...this.missileProjectiles].forEach(p => {
             if (p.mesh) this.sim.scene.remove(p.mesh);
         });
+        this.weaponEffects.forEach(effect => {
+            this.sim.scene.remove(effect.mesh);
+            effect.mesh.material.dispose();
+        });
+        this.weaponEffects = [];
         this.bullets = [];
         this.enemyBullets = [];
         this.bombProjectiles = [];
@@ -108,10 +128,17 @@ export default class CombatManager {
         return hits.length > 0 ? hits[0].point.y : 0;
     }
 
-    /**
-     * Constrói uma rodovia cênica contornando completamente a cidade principal (raio > 240m),
-     * conectando a base militar/pista sudoeste (-600, -500) até o aeródromo/cidade 2 no nordeste (600, 700).
-     */
+    // Amostra o terreno em toda a largura da via e acrescenta um abaulamento discreto.
+    getRoadPoint(t, offset = 0, lift = 0) {
+        const point = this.roadCurve.getPointAt(THREE.MathUtils.clamp(t, 0, 1));
+        const tangent = this.roadCurve.getTangentAt(THREE.MathUtils.clamp(t, 0, 1)).setY(0).normalize();
+        point.addScaledVector(new THREE.Vector3(tangent.z, 0, -tangent.x), offset);
+        point.y = this.getGroundHeightAt(point.x, point.z) + 0.24
+            + Math.max(0, 1 - Math.abs(offset) / 4.4) * 0.06 + lift;
+        return point;
+    }
+
+    // Constrói asfalto, acostamentos e sinalização contínua sobre o relevo.
     createHighwayRoad() {
         const controlPoints = [
             new THREE.Vector3(-660, 0, -550), // Saída do aeródromo / base sudoeste
@@ -134,71 +161,44 @@ export default class CombatManager {
         this.roadCurve = new THREE.CatmullRomCurve3(controlPoints, false, 'catmullrom', 0.5);
         this.roadGroup = new THREE.Group();
 
-        const segments = 220;
-        const roadWidth = 5.2;
-        const positions = [];
-        const uvs = [];
-        const indices = [];
-
-        const stripePositions = [];
-        const stripeIndices = [];
-
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const pt = this.roadCurve.getPointAt(t);
-            pt.y = this.getGroundHeightAt(pt.x, pt.z) + 0.16;
-
-            const tangent = this.roadCurve.getTangentAt(t).setY(0).normalize();
-            const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
-
-            const left = pt.clone().addScaledVector(side, -roadWidth * 0.5);
-            const right = pt.clone().addScaledVector(side, roadWidth * 0.5);
-
-            positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
-            uvs.push(0, t * 50, 1, t * 50);
-
-            // Faixa amarela central dupla
-            const sLeft = pt.clone().addScaledVector(side, -0.14);
-            const sRight = pt.clone().addScaledVector(side, 0.14);
-            sLeft.y += 0.035;
-            sRight.y += 0.035;
-            stripePositions.push(sLeft.x, sLeft.y, sLeft.z, sRight.x, sRight.y, sRight.z);
-
-            if (i < segments) {
-                const base = i * 2;
-                indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
-                if (i % 2 === 0) {
-                    stripeIndices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        const segments = Math.ceil(this.roadCurve.getLength() / 1.5);
+        const addBand = (left, right, material, lift = 0, columns = 1) => {
+            const positions = [];
+            const indices = [];
+            for (let i = 0; i <= segments; i++) {
+                for (let j = 0; j <= columns; j++) {
+                    const point = this.getRoadPoint(i / segments, THREE.MathUtils.lerp(left, right, j / columns), lift);
+                    positions.push(point.x, point.y, point.z);
+                    if (i < segments && j < columns) {
+                        const a = i * (columns + 1) + j;
+                        const b = a + columns + 1;
+                        indices.push(a, b, a + 1, a + 1, b, b + 1);
+                    }
                 }
             }
-        }
-
-        const roadGeom = new THREE.BufferGeometry();
-        roadGeom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        roadGeom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-        roadGeom.setIndex(indices);
-        roadGeom.computeVertexNormals();
-
-        const roadMat = new THREE.MeshStandardMaterial({
-            color: 0x242830,
-            roughness: 0.9,
-            metalness: 0.05,
-            side: THREE.DoubleSide
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.receiveShadow = true;
+            this.roadGroup.add(mesh);
+        };
+        const asphalt = new THREE.MeshStandardMaterial({
+            color: 0x30343a, roughness: 0.96, metalness: 0, side: THREE.DoubleSide
         });
-        const roadMesh = new THREE.Mesh(roadGeom, roadMat);
-        roadMesh.receiveShadow = true;
-        this.roadGroup.add(roadMesh);
-
-        const stripeGeom = new THREE.BufferGeometry();
-        stripeGeom.setAttribute('position', new THREE.Float32BufferAttribute(stripePositions, 3));
-        stripeGeom.setIndex(stripeIndices);
-        stripeGeom.computeVertexNormals();
-
-        const stripeMat = new THREE.MeshBasicMaterial({
-            color: 0xfbc531,
-            side: THREE.DoubleSide
+        const shoulder = new THREE.MeshStandardMaterial({
+            color: 0x777469, roughness: 1, side: THREE.DoubleSide
         });
-        this.roadGroup.add(new THREE.Mesh(stripeGeom, stripeMat));
+        const yellow = new THREE.MeshBasicMaterial({ color: 0xeebd39, side: THREE.DoubleSide });
+        const white = new THREE.MeshBasicMaterial({ color: 0xe3e2d7, side: THREE.DoubleSide });
+        addBand(-4.4, -3.6, shoulder, 0, 3);
+        addBand(3.6, 4.4, shoulder, 0, 3);
+        addBand(-3.6, 3.6, asphalt, 0, 18);
+        addBand(-0.22, -0.10, yellow, 0.028);
+        addBand(0.10, 0.22, yellow, 0.028);
+        addBand(-3.32, -3.19, white, 0.028);
+        addBand(3.19, 3.32, white, 0.028);
 
         this.sim.scene.add(this.roadGroup);
     }
@@ -403,8 +403,8 @@ export default class CombatManager {
             const py = Math.max(terrainY + 38, startPt.y + (Math.random() - 0.5) * 10);
 
             const initialYaw = Math.atan2(nextPt.x - px, nextPt.z - pz);
-            // Velocidade de avião monomotor a hélice (~150 a 185 km/h)
-            const baseSpeed = 0.088 + Math.random() * 0.018;
+            // Usa unidades por segundo na mesma escala de deslocamento do jogador.
+            const baseSpeed = this.flightTuning.patrolSpeed + Math.random() * 4;
 
             this.enemies.push({
                 index: i,
@@ -415,6 +415,7 @@ export default class CombatManager {
                 roll: 0,
                 baseSpeed,
                 speed: baseSpeed,
+                velocity: new THREE.Vector3(Math.sin(initialYaw), 0, Math.cos(initialYaw)).multiplyScalar(baseSpeed),
                 cruiseAlt: startPt.y,
                 hp: 50,
                 fireCooldown: 2.0 + Math.random() * 2.0,
@@ -443,13 +444,21 @@ export default class CombatManager {
             truck.dir = 1;
         }
 
-        const pos = this.roadCurve.getPointAt(truck.t);
-        pos.y = this.getGroundHeightAt(pos.x, pos.z) + 0.14;
-        const tangent = this.roadCurve.getTangentAt(truck.t).multiplyScalar(truck.dir);
+        const laneOffset = truck.dir * 1.75;
+        const pos = this.getRoadPoint(truck.t, laneOffset);
+        const next = this.getRoadPoint(truck.t + truck.dir * 0.001, laneOffset);
+        const tangent = next.sub(pos).normalize();
 
         truck.position.copy(pos);
         truck.mesh.position.copy(pos);
-        truck.mesh.rotation.y = Math.atan2(tangent.x, tangent.z);
+        const leftHeight = this.getRoadPoint(truck.t, laneOffset - 0.6).y;
+        const rightHeight = this.getRoadPoint(truck.t, laneOffset + 0.6).y;
+        truck.mesh.rotation.set(
+            -Math.atan2(tangent.y, Math.hypot(tangent.x, tangent.z)),
+            Math.atan2(tangent.x, tangent.z),
+            Math.atan2(rightHeight - leftHeight, 1.2) * truck.dir,
+            'YXZ'
+        );
         if (truck.marker) {
             truck.marker.rotation.y += dt * 2.5;
         }
@@ -494,45 +503,111 @@ export default class CombatManager {
         });
     }
 
+    // Reutiliza o contexto e os ruídos, comprimindo os picos das rajadas.
+    getWeaponAudio() {
+        if (!this.sim.audioCtx && this.sim.initWebAudioJetEngine) this.sim.initWebAudioJetEngine();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const ctx = this.sim.audioCtx || this.weaponAudio?.ctx || (AudioContextClass ? new AudioContextClass() : null);
+        if (!ctx || ctx.state === 'closed') return null;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        if (this.weaponAudio?.ctx === ctx) return this.weaponAudio;
+        if (this.weaponAudio) {
+            this.weaponAudio.compressor.disconnect();
+            this.weaponAudio.output.disconnect();
+        }
+
+        const size = Math.ceil(ctx.sampleRate * 2);
+        const white = ctx.createBuffer(1, size, ctx.sampleRate);
+        const rumble = ctx.createBuffer(1, size, ctx.sampleRate);
+        const whiteData = white.getChannelData(0);
+        const rumbleData = rumble.getChannelData(0);
+        let low = 0;
+        for (let i = 0; i < size; i++) {
+            const sample = Math.random() * 2 - 1;
+            low = (low + sample * 0.035) / 1.035;
+            whiteData[i] = sample;
+            rumbleData[i] = sample * 0.28 + low * 3.5;
+        }
+        const compressor = ctx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-16, ctx.currentTime);
+        compressor.knee.setValueAtTime(12, ctx.currentTime);
+        compressor.ratio.setValueAtTime(4, ctx.currentTime);
+        compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+        compressor.release.setValueAtTime(0.12, ctx.currentTime);
+        const output = ctx.createGain();
+        output.gain.setValueAtTime(0.7, ctx.currentTime);
+        compressor.connect(output);
+        output.connect(ctx.destination);
+        this.weaponAudio = { ctx, white, rumble, compressor, output };
+        return this.weaponAudio;
+    }
+
+    // Combina estalo, impacto grave e ruído de propulsão com caudas suaves.
     playWeaponSound(type) {
         try {
-            const ctx = this.sim.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === 'suspended') ctx.resume();
-
+            const audio = this.getWeaponAudio();
+            if (!audio) return;
+            const { ctx } = audio;
             const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
+            const variation = 0.94 + Math.random() * 0.12;
+            const envelope = (gain, start, duration, volume, attack) => {
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(volume, start + attack);
+                gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+            };
+            const connectVoice = (source, nodes) => {
+                let previous = source;
+                for (const node of nodes) {
+                    previous.connect(node);
+                    previous = node;
+                }
+                previous.connect(audio.compressor);
+                source.onended = () => {
+                    source.disconnect();
+                    nodes.forEach(node => node.disconnect());
+                };
+            };
+            const noise = (buffer, filterType, frequency, endFrequency, volume, duration, attack = 0.003, delay = 0, q = 0.7) => {
+                const start = now + delay;
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.loop = true;
+                source.playbackRate.setValueAtTime(variation, start);
+                const filter = ctx.createBiquadFilter();
+                filter.type = filterType;
+                filter.Q.setValueAtTime(q, start);
+                filter.frequency.setValueAtTime(frequency * variation, start);
+                filter.frequency.exponentialRampToValueAtTime(endFrequency, start + duration);
+                const gain = ctx.createGain();
+                envelope(gain, start, duration, volume, attack);
+                connectVoice(source, [filter, gain]);
+                source.start(start, Math.random() * buffer.duration);
+                source.stop(start + duration + 0.01);
+            };
+            const thump = (frequency, endFrequency, volume, duration) => {
+                const source = ctx.createOscillator();
+                source.type = 'sine';
+                source.frequency.setValueAtTime(frequency * variation, now);
+                source.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
+                const gain = ctx.createGain();
+                envelope(gain, now, duration, volume, 0.003);
+                connectVoice(source, [gain]);
+                source.start(now);
+                source.stop(now + duration + 0.01);
+            };
 
             if (type === 'gun') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(190, now);
-                osc.frequency.exponentialRampToValueAtTime(55, now + 0.06);
-                gain.gain.setValueAtTime(0.12, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.075);
-            } else if (type === 'bomb') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(340, now);
-                osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
-                gain.gain.setValueAtTime(0.14, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.27);
+                noise(audio.white, 'highpass', 950, 450, 0.45, 0.065);
+                noise(audio.white, 'bandpass', 1800, 650, 0.28, 0.14, 0.002, 0, 0.9);
+                noise(audio.white, 'bandpass', 3300, 1800, 0.07, 0.085, 0.002, 0.028, 2.2);
+                thump(155, 48, 0.42, 0.14);
             } else if (type === 'missile') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(520, now);
-                osc.frequency.exponentialRampToValueAtTime(160, now + 0.35);
-                gain.gain.setValueAtTime(0.16, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.37);
+                noise(audio.white, 'highpass', 650, 300, 0.36, 0.14);
+                noise(audio.rumble, 'lowpass', 1600, 280, 0.65, 1.65, 0.07);
+                noise(audio.white, 'bandpass', 2400, 550, 0.22, 1.1, 0.06, 0.04, 0.55);
+                thump(95, 32, 0.38, 0.28);
+            } else if (type === 'bomb') {
+                thump(340, 110, 0.14, 0.26);
             }
         } catch (e) { }
     }
@@ -545,6 +620,105 @@ export default class CombatManager {
             return new THREE.Vector3(0, 0, 1).applyEuler(physicalEuler).normalize();
         }
         return new THREE.Vector3(0, 0, 1).applyQuaternion(this.sim.airplane.quaternion).normalize();
+    }
+
+    // Compartilha geometrias e materiais para manter os disparos leves.
+    getWeaponResources() {
+        if (this.weaponResources) return this.weaponResources;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.25, 'rgba(255,255,255,0.7)');
+        gradient.addColorStop(0.6, 'rgba(255,255,255,0.22)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
+        const texture = new THREE.CanvasTexture(canvas);
+        const glow = new THREE.SpriteMaterial({
+            map: texture, color: 0xffaa45, transparent: true, opacity: 0.7,
+            blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+        });
+        const smoke = new THREE.SpriteMaterial({
+            map: texture, color: 0xcbd1d7, transparent: true, opacity: 0.4,
+            depthWrite: false
+        });
+        const fin = new THREE.BufferGeometry();
+        fin.setAttribute('position', new THREE.Float32BufferAttribute([
+            0.08, 0, -0.32, 0.36, 0, -0.58, 0.08, 0, -0.61
+        ], 3));
+        fin.computeVertexNormals();
+        this.weaponResources = {
+            glow, smoke,
+            tracerGeometry: new THREE.CylinderGeometry(0.035, 0.035, 1.9, 6).rotateX(Math.PI / 2),
+            tracerMaterial: new THREE.MeshBasicMaterial({ color: 0xfff6cf, toneMapped: false }),
+            haloGeometry: new THREE.CylinderGeometry(0.085, 0.045, 2.8, 6).rotateX(Math.PI / 2),
+            haloMaterial: new THREE.MeshBasicMaterial({
+                color: 0xff9a32, transparent: true, opacity: 0.32,
+                blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+            }),
+            bodyGeometry: new THREE.CylinderGeometry(0.085, 0.085, 0.96, 12).rotateX(Math.PI / 2),
+            noseGeometry: new THREE.ConeGeometry(0.085, 0.32, 12).rotateX(Math.PI / 2),
+            finGeometry: fin,
+            exhaustGeometry: new THREE.SphereGeometry(1, 8, 6),
+            bodyMaterial: new THREE.MeshStandardMaterial({ color: 0xe5e9ee, metalness: 0.65, roughness: 0.32 }),
+            darkMaterial: new THREE.MeshStandardMaterial({ color: 0x35414e, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide }),
+            exhaustMaterial: new THREE.MeshBasicMaterial({
+                color: 0xffc36a, transparent: true, opacity: 0.85,
+                blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+            })
+        };
+        return this.weaponResources;
+    }
+
+    // Emite clarões, fumaça e faíscas com duração limitada.
+    emitWeaponEffect(position, type, velocity = new THREE.Vector3()) {
+        if (this.weaponEffects.length >= (type === 'smoke' ? 180 : 220)) return;
+        const resources = this.getWeaponResources();
+        const isSmoke = type === 'smoke';
+        const material = (isSmoke ? resources.smoke : resources.glow).clone();
+        material.rotation = Math.random() * Math.PI * 2;
+        if (type === 'spark') material.color.setHex(0xffdc8c);
+        const mesh = new THREE.Sprite(material);
+        mesh.position.copy(position);
+        const life = isSmoke ? 1.6 : (type === 'muzzle' ? 0.075 : 0.24);
+        const size = isSmoke ? 0.65 : (type === 'muzzle' ? 1.15 : 0.32);
+        mesh.scale.setScalar(size);
+        this.sim.scene.add(mesh);
+        this.weaponEffects.push({ mesh, velocity: velocity.clone(), life, duration: life, size, isSmoke });
+    }
+
+    updateWeaponEffects(dt) {
+        for (let i = this.weaponEffects.length - 1; i >= 0; i--) {
+            const effect = this.weaponEffects[i];
+            effect.life -= dt;
+            if (effect.life <= 0) {
+                this.sim.scene.remove(effect.mesh);
+                effect.mesh.material.dispose();
+                this.weaponEffects.splice(i, 1);
+                continue;
+            }
+            const age = 1 - effect.life / effect.duration;
+            effect.mesh.position.addScaledVector(effect.velocity, dt);
+            effect.mesh.scale.setScalar(effect.size * (effect.isSmoke ? 1 + age * 4 : 1 + age));
+            effect.mesh.material.opacity = (effect.isSmoke ? 0.38 : 0.9) * (1 - age);
+        }
+    }
+
+    // Verifica todo o trajeto do projétil para evitar atravessar alvos entre quadros.
+    projectileHits(start, end, target, radius) {
+        this._shotSegment.set(start, end);
+        this._shotSegment.closestPointToPoint(target, true, this._closestPoint);
+        return this._closestPoint.distanceToSquared(target) <= radius * radius;
+    }
+
+    emitImpact(position) {
+        for (let i = 0; i < 6; i++) {
+            this.emitWeaponEffect(position, 'spark', new THREE.Vector3(
+                (Math.random() - 0.5) * 12, Math.random() * 9, (Math.random() - 0.5) * 12
+            ));
+        }
     }
 
     fireGun() {
@@ -561,17 +735,21 @@ export default class CombatManager {
             .addScaledVector(right, sideOffset);
         spawnPos.y -= 0.08;
 
-        const mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.14, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0xffe066 })
-        );
+        const resources = this.getWeaponResources();
+        const mesh = new THREE.Group();
+        mesh.add(new THREE.Mesh(resources.tracerGeometry, resources.tracerMaterial));
+        const halo = new THREE.Mesh(resources.haloGeometry, resources.haloMaterial);
+        halo.position.z = -0.4;
+        mesh.add(halo);
         mesh.position.copy(spawnPos);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), forward);
         this.sim.scene.add(mesh);
+        this.emitWeaponEffect(spawnPos, 'muzzle');
 
         const planeSpeed = (this.sim.planeState.speed || 0) * 0.028 * 60;
-        const vel = forward.multiplyScalar(planeSpeed + 105);
+        const vel = forward.multiplyScalar(planeSpeed + 145);
 
-        this.bullets.push({ mesh, position: spawnPos, velocity: vel, life: 2.2 });
+        this.bullets.push({ mesh, position: spawnPos, previousPosition: spawnPos.clone(), velocity: vel, life: 2.2 });
         this.playWeaponSound('gun');
         this.updateMissionHUD();
     }
@@ -632,13 +810,32 @@ export default class CombatManager {
         this.missileCooldown = 0.85;
 
         const forward = this.getPlaneForwardDir();
-        const spawnPos = this.sim.airplane.position.clone().addScaledVector(forward, 1.5);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.sim.airplane.quaternion);
+        const down = new THREE.Vector3(0, -1, 0).applyQuaternion(this.sim.airplane.quaternion);
+        const spawnPos = this.sim.airplane.position.clone().addScaledVector(forward, 0.9)
+            .addScaledVector(right, this.missiles % 2 === 0 ? 0.8 : -0.8)
+            .addScaledVector(down, 0.3);
 
-        const missileMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.08, 0.08, 0.75, 8),
-            new THREE.MeshBasicMaterial({ color: 0xff5252 })
-        );
-        missileMesh.rotation.x = Math.PI / 2;
+        const resources = this.getWeaponResources();
+        const missileMesh = new THREE.Group();
+        missileMesh.add(new THREE.Mesh(resources.bodyGeometry, resources.bodyMaterial));
+        const nose = new THREE.Mesh(resources.noseGeometry, resources.darkMaterial);
+        nose.position.z = 0.64;
+        missileMesh.add(nose);
+        for (let i = 0; i < 4; i++) {
+            const fin = new THREE.Mesh(resources.finGeometry, resources.darkMaterial);
+            fin.rotation.z = i * Math.PI / 2;
+            missileMesh.add(fin);
+        }
+        const flame = new THREE.Mesh(resources.exhaustGeometry, resources.exhaustMaterial);
+        flame.position.z = -0.85;
+        flame.scale.set(0.12, 0.12, 0.45);
+        missileMesh.add(flame);
+        const glow = new THREE.Sprite(resources.glow);
+        glow.position.z = -0.6;
+        glow.scale.setScalar(0.85);
+        missileMesh.add(glow);
+        missileMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), forward);
         missileMesh.position.copy(spawnPos);
         this.sim.scene.add(missileMesh);
 
@@ -648,9 +845,16 @@ export default class CombatManager {
         this.missileProjectiles.push({
             mesh: missileMesh,
             position: spawnPos,
-            velocity: forward.clone().multiplyScalar(planeSpeed + 68),
+            previousPosition: spawnPos.clone(),
+            velocity: forward.clone().multiplyScalar(planeSpeed + 48),
+            speed: planeSpeed + 48,
+            direction: forward.clone(),
+            guidance: new THREE.Quaternion(),
+            age: 0,
+            trailDistance: 0,
+            flame,
             target,
-            life: 4.5
+            life: 6
         });
 
         this.playWeaponSound('missile');
@@ -686,13 +890,15 @@ export default class CombatManager {
             this.ammo = this.maxAmmo;
             this.bombs = this.maxBombs;
             this.missiles = this.maxMissiles;
-            this.showCombatToast('🔄 Munição, Bombas e Mísseis Recarregados na Pista!');
+            this.showCombatToast('🔄 Reabastecido: 1.000 tiros, 8 mísseis e 8 bombas!');
             this.updateMissionHUD();
         }
     }
 
     update(dt) {
         if (!this.enabled || this.sim.gameOver || this.sim.isReplaying) return;
+        dt = THREE.MathUtils.clamp(dt, 0, 0.05);
+        this.updateWeaponEffects(dt);
 
         if (this.gunCooldown > 0) this.gunCooldown -= dt;
         if (this.bombCooldown > 0) this.bombCooldown -= dt;
@@ -727,8 +933,8 @@ export default class CombatManager {
 
         // 2. Atualizar Aviões Inimigos (Monomotores com voo aerodinâmico realista entre cidade e aeroportos)
         let anyEnemyAlive = false;
-        const timeSec = performance.now() * 0.001;
         const playerForward = this.getPlaneForwardDir();
+        const playerSpeed = (this.sim.planeState.speed || 0) * 0.028 * 60;
 
         for (let i = 0; i < this.enemies.length; i++) {
             const enemy = this.enemies[i];
@@ -782,19 +988,20 @@ export default class CombatManager {
 
             if (enemy.state === 'break') {
                 // Curva inclinada aberta (~50°) com leve subida para manobra realista de escape/reengajamento
-                desiredBank = -enemy.breakDir * 0.92;
+                desiredBank = -enemy.breakDir * this.flightTuning.maxBank;
                 const safeBreakAlt = Math.max(enemy.cruiseAlt + 12, this.getGroundHeightAt(enemy.position.x, enemy.position.z) + 45);
-                desiredPitch = THREE.MathUtils.clamp((safeBreakAlt - enemy.position.y) * 0.015 + 0.08, -0.15, 0.24);
+                desiredPitch = THREE.MathUtils.clamp((safeBreakAlt - enemy.position.y) * 0.007, -0.12, 0.22);
             } else {
                 if (enemy.state === 'intercept') {
-                    // Mira num ponto ligeiramente atrás do jogador (perseguição de cauda realista)
-                    targetPos = this._tempVec2.copy(playerPos).addScaledVector(playerForward, -35);
+                    // Antecipa o deslocamento do jogador para realizar passes de interceptação.
+                    const leadTime = THREE.MathUtils.clamp(distToPlayer / (enemy.speed + playerSpeed), 0.2, 2);
+                    targetPos = this._tempVec2.copy(playerPos).addScaledVector(playerForward, playerSpeed * leadTime);
                     targetPos.y = Math.max(targetPos.y + 4, this.getGroundHeightAt(targetPos.x, targetPos.z) + 38);
                 } else {
                     // Patrulha de waypoint em waypoint nos corredores entre a cidade e os aeroportos
                     const wp = enemy.route[enemy.waypointIndex];
                     const distToWp = Math.hypot(wp.x - enemy.position.x, wp.z - enemy.position.z);
-                    if (distToWp < 65) {
+                    if (distToWp < Math.max(55, enemy.speed * 2)) {
                         enemy.waypointIndex = (enemy.waypointIndex + 1) % enemy.route.length;
                     }
                     const activeWp = enemy.route[enemy.waypointIndex];
@@ -816,26 +1023,20 @@ export default class CombatManager {
                 while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
                 while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-                // Bank-to-turn realista: inclina a asa na direção da curva (até ~58°)
-                // yawDiff > 0 (virar à esquerda) -> roll negativo (asa esquerda desce)
-                const maxBankAngle = 1.02;
-                desiredBank = THREE.MathUtils.clamp(-yawDiff * 1.9, -maxBankAngle, maxBankAngle);
-
-                // Pequena ondulação natural de voo em cruzeiro (ar em movimento)
-                const airSway = Math.sin(timeSec * 0.9 + enemy.swayPhase) * 0.04;
-                desiredBank += airSway;
-
-                // Arfagem suave para buscar altitude + leve cabrada coordenada em curvas acentuadas
-                const bankLiftComp = Math.abs(enemy.roll) * 0.06;
+                // Coordena inclinação e velocidade para executar curvas abertas sem oscilações.
+                const desiredTurnRate = THREE.MathUtils.clamp(yawDiff * 0.85, -0.7, 0.7);
+                desiredBank = THREE.MathUtils.clamp(
+                    -Math.atan(desiredTurnRate * enemy.speed / this.flightTuning.turnAcceleration),
+                    -this.flightTuning.maxBank, this.flightTuning.maxBank
+                );
                 desiredPitch = THREE.MathUtils.clamp(
-                    Math.atan2(dy, Math.max(45, horizDist)) + bankLiftComp,
-                    -0.25,
-                    0.28
+                    Math.atan2(dy, Math.max(90, horizDist)),
+                    -0.22, 0.26
                 );
             }
 
             // Antecipação de terreno à frente (evita "teleporte" vertical: o avião puxa o nariz naturalmente antes de colinas)
-            const lookAheadDist = 55;
+            const lookAheadDist = enemy.speed * 3.5;
             const aheadX = enemy.position.x + Math.sin(enemy.yaw) * lookAheadDist;
             const aheadZ = enemy.position.z + Math.cos(enemy.yaw) * lookAheadDist;
             const terrainNow = this.getGroundHeightAt(enemy.position.x, enemy.position.z);
@@ -848,18 +1049,19 @@ export default class CombatManager {
             }
 
             // Inércia aerodinâmica suave de rolagem (Roll) e arfagem (Pitch)
-            enemy.roll = THREE.MathUtils.lerp(enemy.roll, desiredBank, 1 - Math.exp(-3.4 * dt));
-            enemy.pitch = THREE.MathUtils.lerp(enemy.pitch, desiredPitch, 1 - Math.exp(-2.4 * dt));
+            enemy.roll = THREE.MathUtils.lerp(enemy.roll, desiredBank, 1 - Math.exp(-this.flightTuning.rollResponse * dt));
+            enemy.pitch = THREE.MathUtils.lerp(enemy.pitch, desiredPitch, 1 - Math.exp(-this.flightTuning.pitchResponse * dt));
 
             // Curva coordenada: a taxa de guinada (Yaw) vem diretamente da inclinação da asa (tan/sin do roll)
-            const turnRate = THREE.MathUtils.clamp(-Math.sin(enemy.roll) * 1.12, -1.0, 1.0);
+            const turnRate = -this.flightTuning.turnAcceleration * Math.tan(enemy.roll) / Math.max(enemy.speed, 1);
             enemy.yaw += turnRate * dt;
+            enemy.yaw = Math.atan2(Math.sin(enemy.yaw), Math.cos(enemy.yaw));
 
             // Variação realista de velocidade de monomotor: perde um pouco subindo, ganha descendo
             const targetSpeed = THREE.MathUtils.clamp(
-                enemy.baseSpeed - Math.sin(enemy.pitch) * 0.025,
-                0.068,
-                0.125
+                (enemy.state === 'patrol' ? enemy.baseSpeed : this.flightTuning.attackSpeed + (enemy.state === 'break' ? 2 : 0))
+                    - Math.sin(enemy.pitch) * 6 - Math.abs(enemy.roll) * 1.2,
+                this.flightTuning.minSpeed, this.flightTuning.maxSpeed
             );
             enemy.speed = THREE.MathUtils.lerp(enemy.speed, targetSpeed, 1 - Math.exp(-1.5 * dt));
 
@@ -868,7 +1070,8 @@ export default class CombatManager {
             enemy.rotation.set(-enemy.pitch, enemy.yaw, enemy.roll, 'YXZ');
 
             const moveDir = new THREE.Vector3(0, 0, 1).applyEuler(enemy.rotation);
-            enemy.position.addScaledVector(moveDir, enemy.speed * 60 * dt);
+            enemy.velocity.copy(moveDir).multiplyScalar(enemy.speed);
+            enemy.position.addScaledVector(enemy.velocity, dt);
 
             // Trava de segurança mínima absoluta apenas para não atravessar o chão
             const hardFloor = terrainNow + 18;
@@ -902,14 +1105,16 @@ export default class CombatManager {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             b.life -= dt;
+            b.previousPosition.copy(b.position);
             b.position.addScaledVector(b.velocity, dt);
             b.mesh.position.copy(b.position);
 
             let hit = false;
             // Checar colisão com caças
             for (const e of this.enemies) {
-                if (e.alive && b.position.distanceTo(e.position) < 3.4) {
+                if (e.alive && this.projectileHits(b.previousPosition, b.position, e.position, 3.4)) {
                     this.damageEnemyPlane(e, 22);
+                    this.emitImpact(this._closestPoint);
                     hit = true;
                     break;
                 }
@@ -917,15 +1122,18 @@ export default class CombatManager {
             // Checar colisão com caminhões
             if (!hit) {
                 for (const t of this.trucks) {
-                    if (t.alive && b.position.distanceTo(t.position) < 3.6) {
+                    if (t.alive && this.projectileHits(b.previousPosition, b.position, t.position, 2.2)) {
                         this.damageTruck(t, 16);
+                        this.emitImpact(this._closestPoint);
                         hit = true;
                         break;
                     }
                 }
             }
 
-            if (hit || b.life <= 0 || b.position.y <= this.getGroundHeightAt(b.position.x, b.position.z)) {
+            const groundHit = b.position.y <= this.getGroundHeightAt(b.position.x, b.position.z);
+            if (hit || b.life <= 0 || groundHit) {
+                if (!hit && groundHit) this.emitImpact(b.position);
                 this.sim.scene.remove(b.mesh);
                 this.bullets.splice(i, 1);
             }
@@ -958,20 +1166,35 @@ export default class CombatManager {
         for (let i = this.missileProjectiles.length - 1; i >= 0; i--) {
             const m = this.missileProjectiles[i];
             m.life -= dt;
+            m.age += dt;
+            m.previousPosition.copy(m.position);
+            m.speed = Math.min(145, m.speed + 65 * dt);
 
-            if (m.target && m.target.alive) {
-                const desired = m.target.position.clone().sub(m.position).normalize().multiplyScalar(85);
-                m.velocity.lerp(desired, Math.min(1, dt * 4.5));
+            // Limita a curva e mantém a velocidade durante a perseguição do alvo.
+            if (m.target && m.target.alive && m.age > 0.18) {
+                const interceptTime = THREE.MathUtils.clamp(m.position.distanceTo(m.target.position) / m.speed, 0, 1.8);
+                const aim = m.target.position.clone().addScaledVector(m.target.velocity, interceptTime)
+                    .sub(m.position).normalize();
+                m.guidance.setFromUnitVectors(new THREE.Vector3(0, 0, 1), aim);
+                m.mesh.quaternion.rotateTowards(m.guidance, 2.1 * dt);
             }
-
+            m.direction.set(0, 0, 1).applyQuaternion(m.mesh.quaternion);
+            m.velocity.copy(m.direction).multiplyScalar(m.speed);
             m.position.addScaledVector(m.velocity, dt);
             m.mesh.position.copy(m.position);
-            m.mesh.lookAt(m.position.clone().add(m.velocity));
-            m.mesh.rotateX(Math.PI / 2);
+            m.flame.scale.z = 0.4 + Math.sin(m.age * 95) * 0.08;
+            const travel = m.previousPosition.distanceTo(m.position);
+            const trailTotal = m.trailDistance + travel;
+            for (let distance = 1.8 - m.trailDistance; distance <= travel; distance += 1.8) {
+                const puff = m.previousPosition.clone().lerp(m.position, distance / Math.max(travel, 0.001))
+                    .addScaledVector(m.direction, -0.65);
+                this.emitWeaponEffect(puff, 'smoke', new THREE.Vector3(0.25, 0.65, -0.15));
+            }
+            m.trailDistance = trailTotal % 1.8;
 
             let hit = false;
             for (const e of this.enemies) {
-                if (e.alive && m.position.distanceTo(e.position) < 4.5) {
+                if (e.alive && this.projectileHits(m.previousPosition, m.position, e.position, 4.5)) {
                     this.damageEnemyPlane(e, 100);
                     hit = true;
                     break;
@@ -979,7 +1202,7 @@ export default class CombatManager {
             }
             if (!hit) {
                 for (const t of this.trucks) {
-                    if (t.alive && m.position.distanceTo(t.position) < 4.5) {
+                    if (t.alive && this.projectileHits(m.previousPosition, m.position, t.position, 3.0)) {
                         this.damageTruck(t, 100);
                         hit = true;
                         break;
