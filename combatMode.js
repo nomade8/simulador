@@ -4,7 +4,7 @@ import {
     updateEnemyInstance,
     hideEnemyInstance,
     markEnemyInstancesDirty
-} from './planeFactory.js?v=1.0.8';
+} from './planeFactory.js?v=1.0.9';
 
 export default class CombatManager {
     constructor(simulator) {
@@ -47,14 +47,16 @@ export default class CombatManager {
         this.weaponResources = null;
         this.weaponAudio = null;
         this.flightTuning = {
-            patrolSpeed: 25,
-            attackSpeed: 34,
-            minSpeed: 22,
-            maxSpeed: 40,
-            maxBank: 0.9,
-            turnAcceleration: 15,
-            rollResponse: 2.2,
-            pitchResponse: 1.8
+            patrolSpeed: 32,
+            attackSpeed: 42,
+            minSpeed: 28,
+            maxSpeed: 48,
+            maxBank: 0.95,
+            turnAcceleration: 24,
+            rollResponse: 2,
+            pitchResponse: 1.6,
+            maxRollRate: 0.85,
+            maxPitchRate: 0.24
         };
 
         // Raycaster reutilizável para altura do terreno
@@ -64,6 +66,8 @@ export default class CombatManager {
         this._tempVec2 = new THREE.Vector3();
         this._shotSegment = new THREE.Line3();
         this._closestPoint = new THREE.Vector3();
+        this._enemyForward = new THREE.Vector3();
+        this._terrainOrigin = new THREE.Vector3();
 
         this.setupWeaponControls();
     }
@@ -123,7 +127,7 @@ export default class CombatManager {
 
     getGroundHeightAt(x, z) {
         if (!this.sim.ground) return 0;
-        this._raycaster.set(new THREE.Vector3(x, 400, z), this._down);
+        this._raycaster.set(this._terrainOrigin.set(x, 400, z), this._down);
         const hits = this._raycaster.intersectObject(this.sim.ground, false);
         return hits.length > 0 ? hits[0].point.y : 0;
     }
@@ -355,7 +359,7 @@ export default class CombatManager {
             this.trucks.push(truck);
         }
 
-        // 2. Spawnar aviões monomotores inimigos voando no espaço aéreo ENTRE a cidade e os aeroportos
+        // Distribui os caças a jato nos corredores entre a cidade e os aeroportos.
         // Cidade central: (-200..200, -200..200). Aeroportos principais: (600,700), (-600,-500), (-700,400).
         // Corredores de patrulha com múltiplos waypoints entre a borda da cidade e os aeroportos:
         const corridorRoutes = [
@@ -389,6 +393,14 @@ export default class CombatManager {
             ]
         ];
 
+        const patrolRoutes = corridorRoutes.map(route => {
+            const curve = new THREE.CatmullRomCurve3(route, true, 'centripetal');
+            const samples = curve.getSpacedPoints(128).slice(0, 128);
+            samples.forEach(point => {
+                point.y = Math.max(point.y + 20, this.getGroundHeightAt(point.x, point.z) + 55);
+            });
+            return { samples, length: curve.getLength() };
+        });
         const planeCount = Math.min(this.maxEnemies, 2 + waveNum);
         for (let i = 0; i < planeCount; i++) {
             const route = corridorRoutes[i % corridorRoutes.length];
@@ -400,11 +412,14 @@ export default class CombatManager {
             const px = startPt.x + (Math.random() - 0.5) * 40;
             const pz = startPt.z + (Math.random() - 0.5) * 40;
             const terrainY = this.getGroundHeightAt(px, pz);
-            const py = Math.max(terrainY + 38, startPt.y + (Math.random() - 0.5) * 10);
-
             const initialYaw = Math.atan2(nextPt.x - px, nextPt.z - pz);
             // Usa unidades por segundo na mesma escala de deslocamento do jogador.
             const baseSpeed = this.flightTuning.patrolSpeed + Math.random() * 4;
+            const departureTerrain = this.getGroundHeightAt(
+                px + Math.sin(initialYaw) * baseSpeed * 3,
+                pz + Math.cos(initialYaw) * baseSpeed * 3
+            );
+            const py = Math.max(terrainY + 65, departureTerrain + 60, startPt.y + 20);
 
             this.enemies.push({
                 index: i,
@@ -416,21 +431,44 @@ export default class CombatManager {
                 baseSpeed,
                 speed: baseSpeed,
                 velocity: new THREE.Vector3(Math.sin(initialYaw), 0, Math.cos(initialYaw)).multiplyScalar(baseSpeed),
-                cruiseAlt: startPt.y,
+                cruiseAlt: py,
                 hp: 50,
                 fireCooldown: 2.0 + Math.random() * 2.0,
                 alive: true,
                 route,
+                patrolRoute: patrolRoutes[i % patrolRoutes.length],
                 waypointIndex: nextWpIdx,
                 state: 'patrol', // 'patrol' | 'intercept' | 'break'
                 stateTimer: 0,
                 breakDir: (i % 2 === 0 ? 1 : -1),
-                swayPhase: Math.random() * Math.PI * 2
+                breakHeading: initialYaw,
+                terrainTimer: 0,
+                terrainFloor: terrainY,
+                terrainAhead: terrainY
             });
         }
 
         this.showCombatToast(`🎯 ONDA ${waveNum}: ${truckCount} Caminhões na Estrada • ${planeCount} Caças Inimigos!`);
         this.updateMissionHUD();
+    }
+
+    // Busca um ponto adiante na rota contínua para antecipar as curvas da patrulha.
+    getEnemyPatrolTarget(enemy) {
+        const { samples, length } = enemy.patrolRoute;
+        let nearest = 0;
+        let bestDistance = Infinity;
+        for (let i = 0; i < samples.length; i++) {
+            const dx = samples[i].x - enemy.position.x;
+            const dz = samples[i].z - enemy.position.z;
+            const distance = dx * dx + dz * dz;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                nearest = i;
+            }
+        }
+        const ahead = (nearest + (enemy.speed * 1.5 + 18) / length * samples.length) % samples.length;
+        const index = Math.floor(ahead);
+        return this._tempVec2.lerpVectors(samples[index], samples[(index + 1) % samples.length], ahead - index);
     }
 
     updateTruckTransform(truck, dt) {
@@ -931,7 +969,7 @@ export default class CombatManager {
             }
         }
 
-        // 2. Atualizar Aviões Inimigos (Monomotores com voo aerodinâmico realista entre cidade e aeroportos)
+        // Atualiza os caças com inércia, curvas coordenadas e passes de ataque.
         let anyEnemyAlive = false;
         const playerForward = this.getPlaneForwardDir();
         const playerSpeed = (this.sim.planeState.speed || 0) * 0.028 * 60;
@@ -968,12 +1006,14 @@ export default class CombatManager {
                 while (outDiff > Math.PI) outDiff -= Math.PI * 2;
                 while (outDiff < -Math.PI) outDiff += Math.PI * 2;
                 enemy.breakDir = outDiff >= 0 ? 1 : -1;
+                enemy.breakHeading = outYaw;
             } else if (!this.sim._isOnGround && distToPlayer < 520 && playerDistFromCity > 190) {
                 if (distToPlayer < 75) {
                     // Passou perto do jogador: faz curva de break realista para abrir espaço e voltar
                     enemy.state = 'break';
                     enemy.stateTimer = 2.8 + Math.random() * 1.0;
                     enemy.breakDir = Math.random() > 0.5 ? 1 : -1;
+                    enemy.breakHeading = enemy.yaw + enemy.breakDir * 1.35;
                 } else {
                     enemy.state = 'intercept';
                 }
@@ -987,30 +1027,22 @@ export default class CombatManager {
             let desiredPitch = 0;
 
             if (enemy.state === 'break') {
-                // Curva inclinada aberta (~50°) com leve subida para manobra realista de escape/reengajamento
-                desiredBank = -enemy.breakDir * this.flightTuning.maxBank;
-                const safeBreakAlt = Math.max(enemy.cruiseAlt + 12, this.getGroundHeightAt(enemy.position.x, enemy.position.z) + 45);
-                desiredPitch = THREE.MathUtils.clamp((safeBreakAlt - enemy.position.y) * 0.007, -0.12, 0.22);
+                // Completa a curva de escape e nivela as asas ao alcançar o novo rumo.
+                const headingError = Math.atan2(Math.sin(enemy.breakHeading - enemy.yaw), Math.cos(enemy.breakHeading - enemy.yaw));
+                desiredBank = THREE.MathUtils.clamp(
+                    -Math.atan(headingError * 0.8 * enemy.speed / this.flightTuning.turnAcceleration),
+                    -this.flightTuning.maxBank, this.flightTuning.maxBank
+                );
+                const safeBreakAlt = Math.max(enemy.cruiseAlt + 8, enemy.terrainFloor + 55);
+                desiredPitch = THREE.MathUtils.clamp((safeBreakAlt - enemy.position.y) * 0.005, -0.1, 0.18);
             } else {
                 if (enemy.state === 'intercept') {
                     // Antecipa o deslocamento do jogador para realizar passes de interceptação.
                     const leadTime = THREE.MathUtils.clamp(distToPlayer / (enemy.speed + playerSpeed), 0.2, 2);
                     targetPos = this._tempVec2.copy(playerPos).addScaledVector(playerForward, playerSpeed * leadTime);
-                    targetPos.y = Math.max(targetPos.y + 4, this.getGroundHeightAt(targetPos.x, targetPos.z) + 38);
+                    targetPos.y = Math.max(targetPos.y + 4, enemy.terrainAhead + 48);
                 } else {
-                    // Patrulha de waypoint em waypoint nos corredores entre a cidade e os aeroportos
-                    const wp = enemy.route[enemy.waypointIndex];
-                    const distToWp = Math.hypot(wp.x - enemy.position.x, wp.z - enemy.position.z);
-                    if (distToWp < Math.max(55, enemy.speed * 2)) {
-                        enemy.waypointIndex = (enemy.waypointIndex + 1) % enemy.route.length;
-                    }
-                    const activeWp = enemy.route[enemy.waypointIndex];
-                    const wpTerrain = this.getGroundHeightAt(activeWp.x, activeWp.z);
-                    targetPos = this._tempVec2.set(
-                        activeWp.x,
-                        Math.max(wpTerrain + 40, activeWp.y),
-                        activeWp.z
-                    );
+                    targetPos = this.getEnemyPatrolTarget(enemy);
                 }
 
                 const dx = targetPos.x - enemy.position.x;
@@ -1024,7 +1056,7 @@ export default class CombatManager {
                 while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
                 // Coordena inclinação e velocidade para executar curvas abertas sem oscilações.
-                const desiredTurnRate = THREE.MathUtils.clamp(yawDiff * 0.85, -0.7, 0.7);
+                const desiredTurnRate = THREE.MathUtils.clamp(yawDiff * 0.75, -0.85, 0.85);
                 desiredBank = THREE.MathUtils.clamp(
                     -Math.atan(desiredTurnRate * enemy.speed / this.flightTuning.turnAcceleration),
                     -this.flightTuning.maxBank, this.flightTuning.maxBank
@@ -1035,32 +1067,45 @@ export default class CombatManager {
                 );
             }
 
-            // Antecipação de terreno à frente (evita "teleporte" vertical: o avião puxa o nariz naturalmente antes de colinas)
-            const lookAheadDist = enemy.speed * 3.5;
-            const aheadX = enemy.position.x + Math.sin(enemy.yaw) * lookAheadDist;
-            const aheadZ = enemy.position.z + Math.cos(enemy.yaw) * lookAheadDist;
-            const terrainNow = this.getGroundHeightAt(enemy.position.x, enemy.position.z);
-            const terrainAhead = this.getGroundHeightAt(aheadX, aheadZ);
-            const minClearanceY = Math.max(terrainNow, terrainAhead) + 34;
+            // Reutiliza sondagens do relevo e antecipa colinas em duas distâncias.
+            enemy.terrainTimer -= dt;
+            if (enemy.terrainTimer <= 0) {
+                enemy.terrainTimer = 0.16;
+                const sinYaw = Math.sin(enemy.yaw);
+                const cosYaw = Math.cos(enemy.yaw);
+                enemy.terrainFloor = this.getGroundHeightAt(enemy.position.x, enemy.position.z);
+                enemy.terrainAhead = Math.max(
+                    this.getGroundHeightAt(enemy.position.x + sinYaw * enemy.speed * 3, enemy.position.z + cosYaw * enemy.speed * 3),
+                    this.getGroundHeightAt(enemy.position.x + sinYaw * enemy.speed * 6, enemy.position.z + cosYaw * enemy.speed * 6)
+                );
+            }
+            const minClearanceY = Math.max(enemy.terrainFloor, enemy.terrainAhead) + 60;
 
             if (enemy.position.y < minClearanceY) {
-                const climbUrgency = THREE.MathUtils.clamp((minClearanceY - enemy.position.y) * 0.025, 0.12, 0.34);
+                const climbUrgency = THREE.MathUtils.clamp((minClearanceY - enemy.position.y) * 0.014, 0.08, 0.52);
                 desiredPitch = Math.max(desiredPitch, climbUrgency);
+                desiredBank *= 0.4;
             }
 
             // Inércia aerodinâmica suave de rolagem (Roll) e arfagem (Pitch)
-            enemy.roll = THREE.MathUtils.lerp(enemy.roll, desiredBank, 1 - Math.exp(-this.flightTuning.rollResponse * dt));
-            enemy.pitch = THREE.MathUtils.lerp(enemy.pitch, desiredPitch, 1 - Math.exp(-this.flightTuning.pitchResponse * dt));
+            enemy.roll += THREE.MathUtils.clamp(
+                (desiredBank - enemy.roll) * (1 - Math.exp(-this.flightTuning.rollResponse * dt)),
+                -this.flightTuning.maxRollRate * dt, this.flightTuning.maxRollRate * dt
+            );
+            enemy.pitch += THREE.MathUtils.clamp(
+                (desiredPitch - enemy.pitch) * (1 - Math.exp(-this.flightTuning.pitchResponse * dt)),
+                -this.flightTuning.maxPitchRate * dt, this.flightTuning.maxPitchRate * dt
+            );
 
             // Curva coordenada: a taxa de guinada (Yaw) vem diretamente da inclinação da asa (tan/sin do roll)
             const turnRate = -this.flightTuning.turnAcceleration * Math.tan(enemy.roll) / Math.max(enemy.speed, 1);
             enemy.yaw += turnRate * dt;
             enemy.yaw = Math.atan2(Math.sin(enemy.yaw), Math.cos(enemy.yaw));
 
-            // Variação realista de velocidade de monomotor: perde um pouco subindo, ganha descendo
+            // O motor mantém energia, com perda moderada de velocidade em subida e curva.
             const targetSpeed = THREE.MathUtils.clamp(
                 (enemy.state === 'patrol' ? enemy.baseSpeed : this.flightTuning.attackSpeed + (enemy.state === 'break' ? 2 : 0))
-                    - Math.sin(enemy.pitch) * 6 - Math.abs(enemy.roll) * 1.2,
+                    - Math.sin(enemy.pitch) * 7 - Math.abs(enemy.roll) * 1.4,
                 this.flightTuning.minSpeed, this.flightTuning.maxSpeed
             );
             enemy.speed = THREE.MathUtils.lerp(enemy.speed, targetSpeed, 1 - Math.exp(-1.5 * dt));
@@ -1069,14 +1114,17 @@ export default class CombatManager {
             enemy.rotation.order = 'YXZ';
             enemy.rotation.set(-enemy.pitch, enemy.yaw, enemy.roll, 'YXZ');
 
-            const moveDir = new THREE.Vector3(0, 0, 1).applyEuler(enemy.rotation);
+            const moveDir = this._enemyForward.set(0, 0, 1).applyEuler(enemy.rotation);
             enemy.velocity.copy(moveDir).multiplyScalar(enemy.speed);
             enemy.position.addScaledVector(enemy.velocity, dt);
 
-            // Trava de segurança mínima absoluta apenas para não atravessar o chão
-            const hardFloor = terrainNow + 18;
-            if (enemy.position.y < hardFloor) {
-                enemy.position.y = hardFloor;
+            // Uma colisão real encerra o voo em vez de reposicionar o avião no ar.
+            if (enemy.position.y <= enemy.terrainFloor + 2) {
+                enemy.alive = false;
+                this.sim.createExplosion(enemy.position.clone(), 2.2);
+                this.sim.playExplosionSound();
+                hideEnemyInstance(this.enemyInstanced.instancedMeshes, enemy.index);
+                continue;
             }
 
             updateEnemyInstance(

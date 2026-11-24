@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const PLANE_SCALE = 0.35;
 
@@ -874,17 +875,89 @@ export function createPlayerPlane(scene, fuselageColor = '#0e036b') {
     return airplane;
 }
 
+// Monta um caça de asas enflechadas em três lotes compartilhados por todos os inimigos.
+export function getEnemyJetPartDefinitions() {
+    const hullParts = [];
+    const addHull = (geometry, color) => {
+        if (geometry.index) {
+            const original = geometry;
+            geometry = geometry.toNonIndexed();
+            original.dispose();
+        }
+        const count = geometry.attributes.position.count;
+        const tint = new THREE.Color(color);
+        const colors = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) tint.toArray(colors, i * 3);
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        hullParts.push(geometry);
+    };
+    const panel = (points, thickness = 0.075) => {
+        const shape = new THREE.Shape();
+        points.forEach(([x, z], i) => i === 0 ? shape.moveTo(x, z) : shape.lineTo(x, z));
+        shape.closePath();
+        return new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false, steps: 1 })
+            .rotateX(Math.PI / 2).translate(0, thickness * 0.5, 0);
+    };
+    const profile = [
+        [0.31, -2.65], [0.48, -2.25], [0.53, -1.25], [0.48, 0.1],
+        [0.36, 1.1], [0.19, 2.15], [0.015, 2.85]
+    ].map(([radius, z]) => new THREE.Vector2(radius, z));
+    addHull(new THREE.LatheGeometry(profile, 12).rotateX(Math.PI / 2).scale(1, 0.8, 1), 0x8997a5);
+    addHull(panel([
+        [-0.45, 0.65], [0.45, 0.65], [3.15, -1.0], [3.0, -1.65],
+        [0.5, -1.45], [-0.5, -1.45], [-3.0, -1.65], [-3.15, -1.0]
+    ]), 0xa8b3bc);
+    addHull(panel([
+        [-0.32, -1.65], [0.32, -1.65], [1.55, -2.15], [1.45, -2.8],
+        [0.35, -2.65], [-0.35, -2.65], [-1.45, -2.8], [-1.55, -2.15]
+    ], 0.055), 0x778696);
+    for (const side of [-1, 1]) {
+        const finShape = new THREE.Shape();
+        finShape.moveTo(1.5, 0.05);
+        finShape.lineTo(2.35, 1.2);
+        finShape.lineTo(2.75, 1.05);
+        finShape.lineTo(2.75, 0.05);
+        finShape.closePath();
+        addHull(new THREE.ExtrudeGeometry(finShape, { depth: 0.055, bevelEnabled: false })
+            .rotateY(Math.PI / 2).rotateZ(-side * 0.22).translate(side * 0.42, 0.12, 0), 0x637485);
+        addHull(new THREE.BoxGeometry(0.34, 0.27, 0.85).rotateY(side * 0.12)
+            .translate(side * 0.52, -0.08, -0.3), 0x263440);
+        addHull(new THREE.CylinderGeometry(0.23, 0.26, 0.42, 8).rotateX(Math.PI / 2)
+            .translate(side * 0.25, -0.02, -2.6), 0x29323b);
+        addHull(new THREE.BoxGeometry(0.17, 0.025, 0.48)
+            .translate(side * 2.65, 0.055, -1.21), 0xc66645);
+    }
+    addHull(new THREE.ConeGeometry(0.19, 0.7, 8).rotateX(Math.PI / 2)
+        .translate(0, 0, 2.35), 0x35414d);
+    const hull = mergeGeometries(hullParts);
+    hullParts.forEach(geometry => geometry.dispose());
+    const canopy = new THREE.SphereGeometry(0.5, 12, 6)
+        .scale(0.82, 0.62, 2.25).translate(0, 0.39, 0.66);
+    const engineParts = [-1, 1].map(side => new THREE.ConeGeometry(0.18, 0.6, 8)
+        .rotateX(-Math.PI / 2).translate(side * 0.25, -0.02, -2.96));
+    const exhaust = mergeGeometries(engineParts);
+    engineParts.forEach(geometry => geometry.dispose());
+    return [
+        { name: 'hull', geometry: hull, material: new THREE.MeshStandardMaterial({
+            color: 0xffffff, vertexColors: true, roughness: 0.58, metalness: 0.38
+        }), castShadow: true },
+        { name: 'canopy', geometry: canopy, material: new THREE.MeshStandardMaterial({
+            color: 0x233e52, roughness: 0.16, metalness: 0.65
+        }), castShadow: false },
+        { name: 'exhaust', geometry: exhaust, material: new THREE.MeshBasicMaterial({
+            color: 0xffb65c, toneMapped: false
+        }), castShadow: false }
+    ];
+}
+
 export function createEnemyInstancedPlanes(scene, maxEnemies) {
-    const parts = getPlanePartDefinitions(false);
+    const parts = getEnemyJetPartDefinitions();
     const instancedMeshes = {};
     const dummyRoot = new THREE.Object3D();
-    dummyRoot.scale.setScalar(PLANE_SCALE * 2.6);
+    dummyRoot.scale.setScalar(0.95);
 
     parts.forEach((part) => {
-        const material = part.material.clone();
-        if (part.name === 'fuselage') {
-            material.color.set('#cc0000');
-        }
+        const material = part.material;
 
         const mesh = new THREE.InstancedMesh(part.geometry, material, maxEnemies);
         mesh.castShadow = part.castShadow;
@@ -894,10 +967,11 @@ export function createEnemyInstancedPlanes(scene, maxEnemies) {
         for (let i = 0; i < maxEnemies; i++) {
             mesh.setMatrixAt(i, _hideMatrix);
         }
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.instanceMatrix.needsUpdate = true;
 
         scene.add(mesh);
-        instancedMeshes[part.name] = { mesh, localMatrix: part.localMatrix };
+        instancedMeshes[part.name] = { mesh, localMatrix: new THREE.Matrix4() };
     });
 
     return { instancedMeshes, dummyRoot };
@@ -909,26 +983,29 @@ export function updateEnemyInstance(instancedMeshes, dummyRoot, instanceIndex, p
     dummyRoot.rotation.copy(rotation);
     dummyRoot.updateMatrix();
 
-    Object.values(instancedMeshes).forEach(({ mesh, localMatrix }) => {
+    for (const name in instancedMeshes) {
+        const { mesh, localMatrix } = instancedMeshes[name];
         _tempMatrix.multiplyMatrices(dummyRoot.matrix, localMatrix);
         mesh.setMatrixAt(instanceIndex, _tempMatrix);
-    });
+    }
 }
 
 export function hideEnemyInstance(instancedMeshes, instanceIndex) {
-    Object.values(instancedMeshes).forEach(({ mesh }) => {
+    for (const name in instancedMeshes) {
+        const { mesh } = instancedMeshes[name];
         mesh.setMatrixAt(instanceIndex, _hideMatrix);
-    });
+    }
 }
 
 export function markEnemyInstancesDirty(instancedMeshes) {
-    Object.values(instancedMeshes).forEach(({ mesh }) => {
+    for (const name in instancedMeshes) {
+        const { mesh } = instancedMeshes[name];
         mesh.instanceMatrix.needsUpdate = true;
-    });
+    }
 }
 
 export function getEnemyBoundingBox(position, target = new THREE.Box3()) {
-    const halfSize = new THREE.Vector3(1.2, 0.6, 1.5).multiplyScalar(PLANE_SCALE);
+    const halfSize = new THREE.Vector3(3.2, 1.4, 3.3).multiplyScalar(0.95);
     target.setFromCenterAndSize(position, halfSize.multiplyScalar(2));
     return target;
 }

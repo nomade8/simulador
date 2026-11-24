@@ -9,14 +9,14 @@ export default class CityManager {
         this.buildings = []; 
         this.buildingTypes = {
             house: { 
-                colors: [0x8b4513, 0xa0522d, 0xcd853f, 0xdeb887, 0x556b2f], 
+                colors: [0xe0cdb0, 0xcbbca5, 0xb6c2b3, 0xd5b8a5, 0xc3c9cf],
                 scale: [4.5, 2.5, 4.5], 
                 count: 1000, 
                 health: 100, // 2 tiros
                 name: 'Casa' 
             },
             building: { 
-                colors: [0x95a5a6, 0x7f8c8d, '#044f10', 0x34495e, '#661032'], 
+                colors: [0xb5c0c7, 0x899aa6, 0xd0cbbd, 0x758996, 0xa9b0ae],
                 scale: [6, 10, 6], 
                 heightScaleRange: [0.7, 1.8], 
                 count: 400, 
@@ -72,17 +72,17 @@ export default class CityManager {
             
             const baseMaterial = new THREE.MeshStandardMaterial({ 
                 vertexColors: true,
-                roughness: 0.8,
-                metalness: 0.1
+                roughness: 0.9,
+                metalness: 0.06
             });
 
             // Material emissivo para janelas, luzes e letreiros - isso as deixa vivas independentes da iluminação/sombra
             const windowMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                emissive: 0xffbb44, // Brilho amarelado vivo
+                color: 0x527086,
+                emissive: 0xffd397, // Mantém a iluminação quente das janelas.
                 emissiveIntensity: 4.5,
-                roughness: 0.2,
-                metalness: 0.8
+                roughness: 0.32,
+                metalness: 0.25
             });
             this.windowMaterials.push(windowMaterial);
             
@@ -120,10 +120,18 @@ export default class CityManager {
         const count = geometry.attributes.position.count;
         const colors = new Float32Array(count * 3);
         const color = new THREE.Color(colorHex);
+        geometry.computeBoundingBox();
+        const minY = geometry.boundingBox.min.y;
+        const height = Math.max(geometry.boundingBox.max.y - minY, 0.01);
+        const normals = geometry.attributes.normal;
+        const positions = geometry.attributes.position;
         for (let i = 0; i < count; i++) {
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Acrescenta profundidade às fachadas com a geometria já existente.
+            const shade = 0.85 + (positions.getY(i) - minY) / height * 0.12
+                + Math.max(0, normals.getY(i)) * 0.03 - Math.max(0, -normals.getZ(i)) * 0.05;
+            colors[i * 3] = color.r * shade;
+            colors[i * 3 + 1] = color.g * shade;
+            colors[i * 3 + 2] = color.b * shade;
         }
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         return geometry;
@@ -135,9 +143,9 @@ export default class CityManager {
         const windowGeometries = [];
 
         const C_BODY = 0xffffff;
-        const C_ROOF = 0x888888;
-        const C_DOOR = 0x4a2e0f;
-        const C_DETAIL = 0xdddddd;
+        const C_ROOF = type === 'house' ? 0xa97960 : 0x56636c;
+        const C_DOOR = 0x3c4650;
+        const C_DETAIL = 0xc4cbd0;
 
         const baseGeom = this._applyVertexColors(new THREE.BoxGeometry(w, h, d), C_BODY);
         baseGeometries.push(baseGeom);
@@ -148,12 +156,12 @@ export default class CityManager {
             roofGeom.rotateY(Math.PI / 4);
             roofGeom.translate(0, h * 0.5 + roofH * 0.4, 0);
             baseGeometries.push(roofGeom);
-            const doorGeom = this._applyVertexColors(new THREE.BoxGeometry(w * 0.25, h * 0.5, 0.1), C_DOOR);
-            doorGeom.translate(0, -h * 0.25, d * 0.5);
+            const doorGeom = this._applyVertexColors(new THREE.PlaneGeometry(w * 0.25, h * 0.5), C_DOOR);
+            doorGeom.translate(0, -h * 0.25, d * 0.5 + 0.035);
             baseGeometries.push(doorGeom);
             const winSize = w * 0.2;
-            const winGeom = this._applyVertexColors(new THREE.BoxGeometry(winSize, winSize, 0.1), 0xffffff);
-            winGeom.translate(w * 0.25, h * 0.1, d * 0.5);
+            const winGeom = this._applyVertexColors(new THREE.PlaneGeometry(winSize, winSize), 0xffffff);
+            winGeom.translate(w * 0.25, h * 0.1, d * 0.5 + 0.04);
             windowGeometries.push(winGeom);
             const winGeom2 = winGeom.clone();
             winGeom2.translate(-w * 0.5, 0, 0);
@@ -163,7 +171,7 @@ export default class CityManager {
             const topGeom = this._applyVertexColors(new THREE.BoxGeometry(w * 0.8, h * 0.05, d * 0.8), C_ROOF);
             topGeom.translate(0, h * 0.52, 0);
             baseGeometries.push(topGeom);
-            const antGeom = this._applyVertexColors(new THREE.CylinderGeometry(0.05, 0.05, h * 0.25), C_DETAIL);
+            const antGeom = this._applyVertexColors(new THREE.CylinderGeometry(0.05, 0.05, h * 0.25, 6), C_DETAIL);
             antGeom.translate(w * 0.2, h * 0.6, 0);
             baseGeometries.push(antGeom);
             const winW = w * 0.2;
@@ -172,11 +180,11 @@ export default class CityManager {
                 const y = (f / 5 - 0.35) * h;
                 for (let s = 0; s < 2; s++) {
                     const x = (s === 0 ? 0.25 : -0.25) * w;
-                    const win = this._applyVertexColors(new THREE.BoxGeometry(winW, winH, 0.1), 0xffffff);
-                    win.translate(x, y, d * 0.5);
+                    const win = this._applyVertexColors(new THREE.PlaneGeometry(winW, winH), 0xffffff);
+                    win.translate(x, y, d * 0.5 + 0.04);
                     windowGeometries.push(win);
                     const winB = win.clone();
-                    winB.translate(0, 0, -d);
+                    winB.rotateY(Math.PI);
                     windowGeometries.push(winB);
                 }
             }
@@ -188,8 +196,8 @@ export default class CityManager {
             crossV.translate(0, h * 0.2, d * 0.5);
             baseGeometries.push(crossV);
             
-            const win = this._applyVertexColors(new THREE.BoxGeometry(w * 0.8, h * 0.2, 0.1), 0xffffff);
-            win.translate(0, -h * 0.2, d * 0.5);
+            const win = this._applyVertexColors(new THREE.PlaneGeometry(w * 0.8, h * 0.2), 0xffffff);
+            win.translate(0, -h * 0.2, d * 0.5 + 0.04);
             windowGeometries.push(win);
         } else if (type === 'school') {
             const block1 = this._applyVertexColors(new THREE.BoxGeometry(w * 0.3, h * 0.5, w * 0.3), 0x3498db);
@@ -198,18 +206,18 @@ export default class CityManager {
             const block2 = this._applyVertexColors(new THREE.BoxGeometry(w * 0.3, h * 0.8, w * 0.3), 0xe74c3c);
             block2.translate(w * 0.3, -h * 0.1, d * 0.5);
             baseGeometries.push(block2);
-            const schoolWin = this._applyVertexColors(new THREE.BoxGeometry(w * 0.8, h * 0.4, 0.1), 0xffffff);
-            schoolWin.translate(0, h * 0.2, d * 0.45);
+            const schoolWin = this._applyVertexColors(new THREE.PlaneGeometry(w * 0.8, h * 0.4), 0xffffff);
+            schoolWin.translate(0, h * 0.2, d * 0.5 + 0.04);
             windowGeometries.push(schoolWin);
         } else if (type === 'cityHall') {
             const tower = this._applyVertexColors(new THREE.BoxGeometry(w * 0.4, h * 1.5, d * 0.4), C_BODY);
             tower.translate(0, h * 0.25, 0);
             baseGeometries.push(tower);
-            const clock = this._applyVertexColors(new THREE.BoxGeometry(w * 0.25, w * 0.25, 0.2), 0xffffff);
-            clock.translate(0, h * 0.8, d * 0.2);
+            const clock = this._applyVertexColors(new THREE.PlaneGeometry(w * 0.25, w * 0.25), 0xffffff);
+            clock.translate(0, h * 0.8, d * 0.2 + 0.04);
             windowGeometries.push(clock);
             for (let i = -1; i <= 1; i++) {
-                const pillar = this._applyVertexColors(new THREE.CylinderGeometry(0.2, 0.2, h), C_DETAIL);
+                const pillar = this._applyVertexColors(new THREE.CylinderGeometry(0.2, 0.2, h, 8), C_DETAIL);
                 pillar.translate(i * w * 0.3, 0, d * 0.5);
                 baseGeometries.push(pillar);
             }
@@ -277,8 +285,8 @@ export default class CityManager {
                     if (availableTypes.length === 0) continue;
 
                     const weights = {
-                        house: 1000,
-                        building: 400,
+                        house: isCentral ? 250 : 1000,
+                        building: isCentral ? 850 : 280,
                         powerPlant: 15,
                         waterPlant: 15,
                         health: 20,
@@ -332,7 +340,8 @@ export default class CityManager {
                                 
                                 // Usa uma faixa configurável para variar a altura
                                 const [minHeightScale, maxHeightScale] = config.heightScaleRange || [0.9, 1.1];
-                                const hVar = THREE.MathUtils.lerp(minHeightScale, maxHeightScale, Math.random());
+                                const heightBias = type === 'building' && isCentral ? 0.45 + Math.random() * 0.55 : Math.random();
+                                const hVar = THREE.MathUtils.lerp(minHeightScale, maxHeightScale, heightBias);
                                 dummy.position.set(posX, groundY + (config.scale[1] * hVar)/2, posZ);
                                 dummy.rotation.y = (Math.floor(Math.random() * 4) * Math.PI / 2);
                                 dummy.scale.set(1, hVar, 1);
@@ -424,8 +433,10 @@ export default class CityManager {
     }
 
     createStreets() {
+        // Reúne as ruas e calçadas em um único lote, acompanhando o terreno.
         const mat = new THREE.MeshStandardMaterial({ 
-            color: 0x4b535a, 
+            color: 0xffffff,
+            vertexColors: true,
             roughness: 0.95,
             metalness: 0.02,
             polygonOffset: true,
@@ -434,29 +445,56 @@ export default class CityManager {
         });
         const cityExtent = 200;
         const streetInterval = 50; 
-        const streetWidth = 5.5;
-        
+        const positions = [];
+        const colors = [];
+        const indices = [];
+        const raycaster = new THREE.Raycaster();
+        const origin = new THREE.Vector3();
+        const down = new THREE.Vector3(0, -1, 0);
+        const asphalt = new THREE.Color(0x3c444a);
+        const sidewalk = new THREE.Color(0xb3afa4);
+        const stripe = new THREE.Color(0xd8c28a);
+        const bands = [[-4, -2.75], [-2.75, -0.09], [-0.09, 0.09], [0.09, 2.75], [2.75, 4]];
+        const addStreet = (fixed, alongZ) => {
+            for (let s = 0; s < 100; s++) {
+                const from = -cityExtent + s * 4;
+                const to = from + 4;
+                bands.forEach(([left, right], band) => {
+                    const base = positions.length / 3;
+                    const color = band === 0 || band === 4 ? sidewalk : (band === 2 && Math.floor(s / 2) % 2 === 0 ? stripe : asphalt);
+                    for (const [offset, distance] of [[left, from], [right, from], [left, to], [right, to]]) {
+                        const x = alongZ ? fixed + offset : distance;
+                        const z = alongZ ? distance : fixed + offset;
+                        raycaster.set(origin.set(x, 500, z), down);
+                        const hits = raycaster.intersectObject(this.ground, false);
+                        positions.push(x, (hits[0]?.point.y || 0) + (band === 0 || band === 4 ? 0.32 : 0.24), z);
+                        color.toArray(colors, colors.length);
+                    }
+                    if (alongZ) indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+                    else indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+                });
+            }
+        };
         for (let x = -cityExtent; x <= cityExtent; x += streetInterval) {
             if (Math.abs(x) < 10) continue; // Evita a pista (eixo X central)
-            const geom = new THREE.PlaneGeometry(streetWidth, cityExtent * 2);
-            const street = new THREE.Mesh(geom, mat);
-            street.rotation.x = -Math.PI / 2;
-            street.position.set(x, 0.01, 0);
-            street.receiveShadow = true;
-            this.scene.add(street);
+            addStreet(x, true);
         }
 
         for (let z = -cityExtent; z <= cityExtent; z += streetInterval) {
             // Se o Z da rua estiver na faixa da pista, e a rua cruzar o X central, evitamos
             // No entanto, as ruas Z cruzam todo o X. Então vamos pular se Z estiver na área da pista.
             if (Math.abs(z) < 50) continue; 
-            const geom = new THREE.PlaneGeometry(cityExtent * 2, streetWidth);
-            const street = new THREE.Mesh(geom, mat);
-            street.rotation.x = -Math.PI / 2;
-            street.position.set(0, 0.01, z);
-            street.receiveShadow = true;
-            this.scene.add(street);
+            addStreet(z, false);
         }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        const streets = new THREE.Mesh(geometry, mat);
+        streets.receiveShadow = true;
+        this.scene.add(streets);
+        this.streets = streets;
     }
 
     setTargets() {

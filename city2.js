@@ -10,14 +10,14 @@ export default class City2Manager {
         this.buildings = []; 
         this.buildingTypes = {
             house: { 
-                colors: [0x3e3e3e, 0x4a4e69, 0x9a8c98, 0xc9ada7], 
+                colors: [0xd5cbb9, 0xb6c0c5, 0xc1c8b8, 0xc8b5a2],
                 scale: [5, 2.5, 5], 
                 count: 50, 
                 health: 100,
                 name: 'Casa do Aeródromo' 
             },
             building: { 
-                colors: [0x1a1a2e, 0x16213e, 0x0f3460, 0x34495e], 
+                colors: [0xa3b1ba, 0xbec7cc, 0x7f939f, 0x9ba9ad],
                 scale: [8, 12, 8], 
                 heightScaleRange: [1.0, 1.4], 
                 count: 50, 
@@ -38,16 +38,16 @@ export default class City2Manager {
             
             const baseMaterial = new THREE.MeshStandardMaterial({ 
                 vertexColors: true,
-                roughness: 0.7,
-                metalness: 0.3
+                roughness: 0.85,
+                metalness: 0.12
             });
 
             const windowMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                emissive: 0x00f0ff,
+                color: 0x426579,
+                emissive: 0xb9dce5,
                 emissiveIntensity: 5.0,
-                roughness: 0.1,
-                metalness: 0.9
+                roughness: 0.25,
+                metalness: 0.35
             });
             this.windowMaterials.push(windowMaterial);
             
@@ -85,10 +85,18 @@ export default class City2Manager {
         const count = geometry.attributes.position.count;
         const colors = new Float32Array(count * 3);
         const color = new THREE.Color(colorHex);
+        geometry.computeBoundingBox();
+        const minY = geometry.boundingBox.min.y;
+        const height = Math.max(geometry.boundingBox.max.y - minY, 0.01);
+        const normals = geometry.attributes.normal;
+        const positions = geometry.attributes.position;
         for (let i = 0; i < count; i++) {
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Valoriza as fachadas sem acrescentar polígonos ou luzes.
+            const shade = 0.85 + (positions.getY(i) - minY) / height * 0.12
+                + Math.max(0, normals.getY(i)) * 0.03 - Math.max(0, -normals.getZ(i)) * 0.05;
+            colors[i * 3] = color.r * shade;
+            colors[i * 3 + 1] = color.g * shade;
+            colors[i * 3 + 2] = color.b * shade;
         }
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         return geometry;
@@ -100,8 +108,8 @@ export default class City2Manager {
         const windowGeometries = [];
 
         const C_BODY = 0xffffff;
-        const C_ROOF = 0x444444;
-        const C_DOOR = 0x111111;
+        const C_ROOF = 0x5d6b76;
+        const C_DOOR = 0x35424c;
         const C_DETAIL = 0xdddddd;
 
         const baseGeom = this._applyVertexColors(new THREE.BoxGeometry(w, h, d), C_BODY);
@@ -113,12 +121,12 @@ export default class City2Manager {
             roofGeom.rotateY(Math.PI / 4);
             roofGeom.translate(0, h * 0.5 + roofH * 0.4, 0);
             baseGeometries.push(roofGeom);
-            const doorGeom = this._applyVertexColors(new THREE.BoxGeometry(w * 0.25, h * 0.5, 0.1), C_DOOR);
-            doorGeom.translate(0, -h * 0.25, d * 0.5);
+            const doorGeom = this._applyVertexColors(new THREE.PlaneGeometry(w * 0.25, h * 0.5), C_DOOR);
+            doorGeom.translate(0, -h * 0.25, d * 0.5 + 0.035);
             baseGeometries.push(doorGeom);
             const winSize = w * 0.2;
-            const winGeom = this._applyVertexColors(new THREE.BoxGeometry(winSize, winSize, 0.1), 0xffffff);
-            winGeom.translate(w * 0.25, h * 0.1, d * 0.5);
+            const winGeom = this._applyVertexColors(new THREE.PlaneGeometry(winSize, winSize), 0xffffff);
+            winGeom.translate(w * 0.25, h * 0.1, d * 0.5 + 0.04);
             windowGeometries.push(winGeom);
             const winGeom2 = winGeom.clone();
             winGeom2.translate(-w * 0.5, 0, 0);
@@ -128,7 +136,7 @@ export default class City2Manager {
             const topGeom = this._applyVertexColors(new THREE.BoxGeometry(w * 0.8, h * 0.03, d * 0.8), C_ROOF);
             topGeom.translate(0, h * 0.51, 0);
             baseGeometries.push(topGeom);
-            const antGeom = this._applyVertexColors(new THREE.CylinderGeometry(0.1, 0.1, h * 0.4), C_DETAIL);
+            const antGeom = this._applyVertexColors(new THREE.CylinderGeometry(0.1, 0.1, h * 0.4, 6), C_DETAIL);
             antGeom.translate(0, h * 0.7, 0);
             baseGeometries.push(antGeom);
             const winW = w * 0.25;
@@ -137,11 +145,11 @@ export default class City2Manager {
                 const y = (f / 6 - 0.35) * h;
                 for (let s = 0; s < 2; s++) {
                     const x = (s === 0 ? 0.25 : -0.25) * w;
-                    const win = this._applyVertexColors(new THREE.BoxGeometry(winW, winH, 0.1), 0xffffff);
-                    win.translate(x, y, d * 0.5);
+                    const win = this._applyVertexColors(new THREE.PlaneGeometry(winW, winH), 0xffffff);
+                    win.translate(x, y, d * 0.5 + 0.04);
                     windowGeometries.push(win);
                     const winB = win.clone();
-                    winB.translate(0, 0, -d);
+                    winB.rotateY(Math.PI);
                     windowGeometries.push(winB);
                 }
             }

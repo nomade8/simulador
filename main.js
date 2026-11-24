@@ -4,12 +4,12 @@ import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { createPlayerPlane } from './planeFactory.js?v=1.0.8';
-import CityManager from './city.js?v=1.0.4';
-import City2Manager from './city2.js?v=1.0.4';
+import { createPlayerPlane } from './planeFactory.js?v=1.0.9';
+import CityManager from './city.js?v=1.0.5';
+import City2Manager from './city2.js?v=1.0.5';
 import Autopilot from './autopilot.js?v=1.0.7';
 import AirlinerHUD from './airlinerHud.js?v=1.0.8';
-import CombatManager from './combatMode.js?v=1.0.2';
+import CombatManager from './combatMode.js?v=1.0.3';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -510,6 +510,28 @@ class FlightSimulator {
         }
 
         groundGeometry.computeVertexNormals();
+        // Pinta vegetação, encostas e rocha nos vértices existentes, sem novas malhas.
+        const terrainColors = new Float32Array(count * 3);
+        const normals = groundGeometry.attributes.normal;
+        const meadowColor = new THREE.Color(0x8da377);
+        const dryColor = new THREE.Color(0xb2ab83);
+        const rockColor = new THREE.Color(0x999b95);
+        const forestColor = new THREE.Color(0x667f60);
+        const terrainColor = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+            const x = posAttr.getX(i);
+            const z = -posAttr.getY(i);
+            const height = posAttr.getZ(i);
+            const patch = THREE.MathUtils.clamp(
+                0.5 + Math.sin(x * 0.008 + Math.cos(z * 0.005)) * Math.cos(z * 0.007) * 0.5, 0, 1
+            );
+            const slope = THREE.MathUtils.smoothstep(1 - normals.getZ(i), 0.08, 0.38);
+            terrainColor.copy(meadowColor).lerp(forestColor, patch * 0.65)
+                .lerp(dryColor, THREE.MathUtils.smoothstep(height, 55, 180) * 0.55)
+                .lerp(rockColor, slope * 0.85);
+            terrainColor.toArray(terrainColors, i * 3);
+        }
+        groundGeometry.setAttribute('color', new THREE.BufferAttribute(terrainColors, 3));
         groundGeometry.boundsTree = new MeshBVH(groundGeometry);
 
         // Gerar texturas em Alta Qualidade (1024x1024) e Modo Leve (256x256)
@@ -519,8 +541,9 @@ class FlightSimulator {
         this.groundMaterial = new THREE.MeshStandardMaterial({
             map: this.highResTerrainTexture,
             color: '#ffffff',
-            roughness: 0.9,
-            metalness: 0.05,
+            vertexColors: true,
+            roughness: 1,
+            metalness: 0,
             flatShading: false
         });
 
@@ -537,48 +560,25 @@ class FlightSimulator {
         const ctx = canvas.getContext('2d');
         const imageData = ctx.createImageData(size, size);
 
-        function textureNoise(x, y) {
-            const n = Math.sin(x * 0.015) * Math.cos(y * 0.015) +
-                Math.sin(x * 0.035) * Math.cos(y * 0.035) * 0.5 +
-                Math.sin(x * 0.08) * Math.cos(y * 0.08) * 0.25;
-            return (n + 1) / 2;
-        }
-
-        const scale = 1024 / size;
+        // Usa ruído periódico discreto para disfarçar a repetição da textura.
         for (let x = 0; x < size; x++) {
             for (let y = 0; y < size; y++) {
                 const index = (y * size + x) * 4;
-                const wx = x * scale;
-                const wy = y * scale;
-                const nVal = textureNoise(wx, wy);
-                const nVal2 = textureNoise(wx * 2.8, wy * 2.8);
-
-                const grassR = 24, grassG = 95, grassB = 28;
-                const mossR = 40, mossG = 115, mossB = 32;
-                const earthR = 85, earthG = 75, earthB = 45;
-
-                let r, g, b;
-                if (nVal > 0.65) {
-                    const factor = (nVal - 0.65) / 0.35;
-                    r = grassR + (earthR - grassR) * factor;
-                    g = grassG + (earthG - grassG) * factor;
-                    b = grassB + (earthB - grassB) * factor;
-                } else {
-                    r = grassR + (mossR - grassR) * nVal2;
-                    g = grassG + (mossG - grassG) * nVal2;
-                    b = grassB + (mossB - grassB) * nVal2;
-                }
-
-                const noiseVariation = (Math.random() - 0.5) * 18;
-                imageData.data[index] = Math.max(0, Math.min(255, r + noiseVariation));
-                imageData.data[index + 1] = Math.max(0, Math.min(255, g + noiseVariation));
-                imageData.data[index + 2] = Math.max(0, Math.min(255, b + noiseVariation));
+                const u = x / size * Math.PI * 2;
+                const v = y / size * Math.PI * 2;
+                const grain = Math.sin(u * 3 + Math.cos(v * 2) * 0.7) * Math.cos(v * 2) * 6
+                    + Math.sin(u * 7 - v * 5) * 3 + Math.sin(u * 21 + v * 17) * 1.5;
+                const variation = grain + (Math.random() - 0.5) * 12;
+                imageData.data[index] = 235 + variation;
+                imageData.data[index + 1] = 237 + variation;
+                imageData.data[index + 2] = 228 + variation;
                 imageData.data[index + 3] = 255;
             }
         }
         ctx.putImageData(imageData, 0, 0);
 
         const terrainTexture = new THREE.CanvasTexture(canvas);
+        terrainTexture.colorSpace = THREE.SRGBColorSpace;
         terrainTexture.wrapS = THREE.RepeatWrapping;
         terrainTexture.wrapT = THREE.RepeatWrapping;
         terrainTexture.repeat.set(16, 16);
