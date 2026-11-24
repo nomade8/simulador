@@ -355,50 +355,76 @@ export default class CombatManager {
             this.trucks.push(truck);
         }
 
-        // 2. Spawnar aviões monomotores inimigos com rotas amplas BEM LONGE da cidade
-        // A cidade principal fica próxima de (0, 0).
-        // Estas zonas de patrulha ficam bem afastadas (entre 600m e 1200m de distância), sobre vales e montanhas distantes:
-        const patrolZones = [
-            { x: -950, z: -850, alt: 95, r: 350 },
-            { x: 900, z: 950, alt: 110, r: 380 },
-            { x: -900, z: 750, alt: 120, r: 360 },
-            { x: 1100, z: -650, alt: 105, r: 370 },
-            { x: -350, z: -1050, alt: 115, r: 390 },
-            { x: 1050, z: -250, alt: 100, r: 360 }
+        // 2. Spawnar aviões monomotores inimigos voando no espaço aéreo ENTRE a cidade e os aeroportos
+        // Cidade central: (-200..200, -200..200). Aeroportos principais: (600,700), (-600,-500), (-700,400).
+        // Corredores de patrulha com múltiplos waypoints entre a borda da cidade e os aeroportos:
+        const corridorRoutes = [
+            // Corredor Nordeste (entre a cidade e o aeroporto NE 600, 700, acompanhando a rodovia)
+            [
+                new THREE.Vector3(260, 58, 280),
+                new THREE.Vector3(470, 68, 490),
+                new THREE.Vector3(340, 62, 620),
+                new THREE.Vector3(140, 56, 360)
+            ],
+            // Corredor Sudoeste (entre a cidade e o aeroporto SW -600, -500)
+            [
+                new THREE.Vector3(-270, 56, -240),
+                new THREE.Vector3(-480, 66, -390),
+                new THREE.Vector3(-360, 64, -140),
+                new THREE.Vector3(-290, 58, 120)
+            ],
+            // Corredor Noroeste (entre a cidade e o aeroporto NW -700, 400)
+            [
+                new THREE.Vector3(-290, 60, 210),
+                new THREE.Vector3(-540, 70, 320),
+                new THREE.Vector3(-420, 65, 480),
+                new THREE.Vector3(-180, 58, 340)
+            ],
+            // Corredor Leste / Sudeste (vale aberto entre a cidade e o leste)
+            [
+                new THREE.Vector3(310, 62, -160),
+                new THREE.Vector3(520, 72, 80),
+                new THREE.Vector3(390, 66, 260),
+                new THREE.Vector3(280, 58, 40)
+            ]
         ];
 
         const planeCount = Math.min(this.maxEnemies, 2 + waveNum);
         for (let i = 0; i < planeCount; i++) {
-            const zone = patrolZones[i % patrolZones.length];
-            const angle = (i / planeCount) * Math.PI * 2 + Math.random() * 0.5;
-            const radius = zone.r * (0.8 + Math.random() * 0.35);
-            const px = zone.x + Math.cos(angle) * radius;
-            const pz = zone.z + Math.sin(angle) * radius;
+            const route = corridorRoutes[i % corridorRoutes.length];
+            const startWpIdx = i % route.length;
+            const nextWpIdx = (startWpIdx + 1) % route.length;
+            const startPt = route[startWpIdx];
+            const nextPt = route[nextWpIdx];
+
+            const px = startPt.x + (Math.random() - 0.5) * 40;
+            const pz = startPt.z + (Math.random() - 0.5) * 40;
             const terrainY = this.getGroundHeightAt(px, pz);
-            const py = Math.max(terrainY + 65, zone.alt + (Math.random() - 0.5) * 20);
+            const py = Math.max(terrainY + 38, startPt.y + (Math.random() - 0.5) * 10);
 
-            // Velocidade de monomotor realista (~140 a 180 km/h)
-            const monoSpeed = 0.08 + Math.random() * 0.018;
-
-            const initRot = new THREE.Euler(0, angle + Math.PI / 2, 0, 'YXZ');
+            const initialYaw = Math.atan2(nextPt.x - px, nextPt.z - pz);
+            // Velocidade de avião monomotor a hélice (~150 a 185 km/h)
+            const baseSpeed = 0.088 + Math.random() * 0.018;
 
             this.enemies.push({
                 index: i,
                 position: new THREE.Vector3(px, py, pz),
-                rotation: initRot,
-                yaw: angle + Math.PI / 2,
+                rotation: new THREE.Euler(0, initialYaw, 0, 'YXZ'),
+                yaw: initialYaw,
                 pitch: 0,
                 roll: 0,
-                targetRoll: 0,
-                speed: monoSpeed, // Velocidade moderada de monomotor
-                cruiseAlt: py,
+                baseSpeed,
+                speed: baseSpeed,
+                cruiseAlt: startPt.y,
                 hp: 50,
                 fireCooldown: 2.0 + Math.random() * 2.0,
                 alive: true,
-                patrolCenter: new THREE.Vector3(zone.x, py, zone.z),
-                patrolRadius: radius,
-                patrolAngle: angle,
-                patrolDir: (i % 2 === 0 ? 1 : -1)
+                route,
+                waypointIndex: nextWpIdx,
+                state: 'patrol', // 'patrol' | 'intercept' | 'break'
+                stateTimer: 0,
+                breakDir: (i % 2 === 0 ? 1 : -1),
+                swayPhase: Math.random() * Math.PI * 2
             });
         }
 
@@ -699,8 +725,11 @@ export default class CombatManager {
             }
         }
 
-        // 2. Atualizar Aviões Inimigos (Monomotores com voo aerodinâmico e curvas inclinadas reais)
+        // 2. Atualizar Aviões Inimigos (Monomotores com voo aerodinâmico realista entre cidade e aeroportos)
         let anyEnemyAlive = false;
+        const timeSec = performance.now() * 0.001;
+        const playerForward = this.getPlaneForwardDir();
+
         for (let i = 0; i < this.enemies.length; i++) {
             const enemy = this.enemies[i];
             if (!enemy.alive) {
@@ -711,82 +740,140 @@ export default class CombatManager {
 
             const toPlayer = this._tempVec.copy(playerPos).sub(enemy.position);
             const distToPlayer = toPlayer.length();
+            const distFromCity = Math.hypot(enemy.position.x, enemy.position.z);
+            const playerDistFromCity = Math.hypot(playerPos.x, playerPos.z);
 
-            // Ponto de destino inteligente:
-            // Só engaja o jogador se ele estiver fora da cidade (distância do centro > 250m)
-            // ou se o jogador se aproximar da zona de patrulha do inimigo (< 350m).
-            // NUNCA persegue o jogador para dentro da cidade (fica fora do raio de 280m da cidade central).
-            let targetPos;
-            const playerDistFromCenter = Math.hypot(playerPos.x, playerPos.z);
-            const isNearPlayer = distToPlayer < 360 && !this.sim._isOnGround;
-            const isEngagingPlayer = isNearPlayer && playerDistFromCenter > 260;
+            enemy.stateTimer = Math.max(0, enemy.stateTimer - dt);
 
-            if (isEngagingPlayer) {
-                targetPos = this._tempVec2.copy(playerPos);
-                const minSafeAlt = this.getGroundHeightAt(playerPos.x, playerPos.z) + 40;
-                if (targetPos.y < minSafeAlt) targetPos.y = minSafeAlt;
+            // Máquina de estados de voo realista:
+            // - 'patrol': percorre waypoints entre a cidade e os aeroportos
+            // - 'intercept': curva suavemente para engajar o jogador quando ele está no ar por perto (< 520m)
+            // - 'break': executa curva inclinada de evasão/reengajamento ao passar muito perto (< 80m) ou chegar perto da cidade
+            if (enemy.state === 'break') {
+                if (enemy.stateTimer <= 0 && distFromCity > 240) {
+                    enemy.state = (distToPlayer < 520 && !this.sim._isOnGround && playerDistFromCity > 200) ? 'intercept' : 'patrol';
+                }
+            } else if (distFromCity < 230) {
+                // Chegou perto demais da cidade -> faz curva inclinada suave para fora (sem empurrão artificial)
+                enemy.state = 'break';
+                enemy.stateTimer = 2.6;
+                const outYaw = Math.atan2(enemy.position.x || 1, enemy.position.z || 1);
+                let outDiff = outYaw - enemy.yaw;
+                while (outDiff > Math.PI) outDiff -= Math.PI * 2;
+                while (outDiff < -Math.PI) outDiff += Math.PI * 2;
+                enemy.breakDir = outDiff >= 0 ? 1 : -1;
+            } else if (!this.sim._isOnGround && distToPlayer < 520 && playerDistFromCity > 190) {
+                if (distToPlayer < 75) {
+                    // Passou perto do jogador: faz curva de break realista para abrir espaço e voltar
+                    enemy.state = 'break';
+                    enemy.stateTimer = 2.8 + Math.random() * 1.0;
+                    enemy.breakDir = Math.random() > 0.5 ? 1 : -1;
+                } else {
+                    enemy.state = 'intercept';
+                }
             } else {
-                // Patrulha em círculos amplos e trajetórias suaves bem afastadas da cidade
-                enemy.patrolAngle += enemy.patrolDir * dt * 0.10;
-                const tx = enemy.patrolCenter.x + Math.cos(enemy.patrolAngle) * enemy.patrolRadius;
-                const tz = enemy.patrolCenter.z + Math.sin(enemy.patrolAngle) * enemy.patrolRadius;
-                const terrainUnderPatrol = this.getGroundHeightAt(tx, tz);
-                const ty = Math.max(terrainUnderPatrol + 55, enemy.cruiseAlt);
-                targetPos = this._tempVec2.set(tx, ty, tz);
+                enemy.state = 'patrol';
             }
 
-            // Vetor desejado de navegação
-            const toTarget = targetPos.clone().sub(enemy.position);
-            const horizDist = Math.hypot(toTarget.x, toTarget.z);
-            const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
+            // Definir ponto alvo e atitude desejada conforme o estado
+            let targetPos;
+            let desiredBank = 0;
+            let desiredPitch = 0;
 
-            // Diferença angular de proa (-PI a +PI)
-            let yawDiff = desiredYaw - enemy.yaw;
-            while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-            while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+            if (enemy.state === 'break') {
+                // Curva inclinada aberta (~50°) com leve subida para manobra realista de escape/reengajamento
+                desiredBank = -enemy.breakDir * 0.92;
+                const safeBreakAlt = Math.max(enemy.cruiseAlt + 12, this.getGroundHeightAt(enemy.position.x, enemy.position.z) + 45);
+                desiredPitch = THREE.MathUtils.clamp((safeBreakAlt - enemy.position.y) * 0.015 + 0.08, -0.15, 0.24);
+            } else {
+                if (enemy.state === 'intercept') {
+                    // Mira num ponto ligeiramente atrás do jogador (perseguição de cauda realista)
+                    targetPos = this._tempVec2.copy(playerPos).addScaledVector(playerForward, -35);
+                    targetPos.y = Math.max(targetPos.y + 4, this.getGroundHeightAt(targetPos.x, targetPos.z) + 38);
+                } else {
+                    // Patrulha de waypoint em waypoint nos corredores entre a cidade e os aeroportos
+                    const wp = enemy.route[enemy.waypointIndex];
+                    const distToWp = Math.hypot(wp.x - enemy.position.x, wp.z - enemy.position.z);
+                    if (distToWp < 65) {
+                        enemy.waypointIndex = (enemy.waypointIndex + 1) % enemy.route.length;
+                    }
+                    const activeWp = enemy.route[enemy.waypointIndex];
+                    const wpTerrain = this.getGroundHeightAt(activeWp.x, activeWp.z);
+                    targetPos = this._tempVec2.set(
+                        activeWp.x,
+                        Math.max(wpTerrain + 40, activeWp.y),
+                        activeWp.z
+                    );
+                }
 
-            // FÍSICA AERODINÂMICA REAL (Bank-to-turn):
-            // Em voo real (e no simulador):
-            // Curva para a ESQUERDA (yaw aumenta, yawDiff > 0) -> ASA ESQUERDA ABAIXA -> roll negativo no avião (Z < 0)
-            // Curva para a DIREITA (yaw diminui, yawDiff < 0) -> ASA DIREITA ABAIXA -> roll positivo no avião (Z > 0)
-            // Usamos inclinação pronunciada (até ~60° = 1.05 rad) para que a rotação da asa seja claramente visível.
-            const maxBankAngle = 1.05; // ~60 graus de inclinação nítida das asas
-            const desiredBank = THREE.MathUtils.clamp(-yawDiff * 2.2, -maxBankAngle, maxBankAngle);
+                const dx = targetPos.x - enemy.position.x;
+                const dy = targetPos.y - enemy.position.y;
+                const dz = targetPos.z - enemy.position.z;
+                const horizDist = Math.hypot(dx, dz);
+                const desiredYaw = Math.atan2(dx, dz);
 
-            // A rolagem da asa entra rápido e suave
-            enemy.roll = THREE.MathUtils.lerp(enemy.roll, desiredBank, 1 - Math.exp(-4.5 * dt));
+                let yawDiff = desiredYaw - enemy.yaw;
+                while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+                while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
 
-            // A curva de proa (yaw) responde à inclinação das asas (curva coordenada aerodinâmica)
-            const coordinatedYawRate = THREE.MathUtils.clamp(-Math.sin(enemy.roll) * 1.35, -1.1, 1.1);
-            enemy.yaw += coordinatedYawRate * dt;
+                // Bank-to-turn realista: inclina a asa na direção da curva (até ~58°)
+                // yawDiff > 0 (virar à esquerda) -> roll negativo (asa esquerda desce)
+                const maxBankAngle = 1.02;
+                desiredBank = THREE.MathUtils.clamp(-yawDiff * 1.9, -maxBankAngle, maxBankAngle);
 
-            // Controle de Altitude e Arfagem (Pitch)
-            const altError = targetPos.y - enemy.position.y;
-            const desiredPitch = THREE.MathUtils.clamp(Math.atan2(altError, Math.max(35, horizDist)), -0.28, 0.32);
-            enemy.pitch = THREE.MathUtils.lerp(enemy.pitch, desiredPitch, 1 - Math.exp(-2.5 * dt));
+                // Pequena ondulação natural de voo em cruzeiro (ar em movimento)
+                const airSway = Math.sin(timeSec * 0.9 + enemy.swayPhase) * 0.04;
+                desiredBank += airSway;
 
-            // Aplicação da rotação: ordem 'YXZ', exatamente como o avião do jogador!
+                // Arfagem suave para buscar altitude + leve cabrada coordenada em curvas acentuadas
+                const bankLiftComp = Math.abs(enemy.roll) * 0.06;
+                desiredPitch = THREE.MathUtils.clamp(
+                    Math.atan2(dy, Math.max(45, horizDist)) + bankLiftComp,
+                    -0.25,
+                    0.28
+                );
+            }
+
+            // Antecipação de terreno à frente (evita "teleporte" vertical: o avião puxa o nariz naturalmente antes de colinas)
+            const lookAheadDist = 55;
+            const aheadX = enemy.position.x + Math.sin(enemy.yaw) * lookAheadDist;
+            const aheadZ = enemy.position.z + Math.cos(enemy.yaw) * lookAheadDist;
+            const terrainNow = this.getGroundHeightAt(enemy.position.x, enemy.position.z);
+            const terrainAhead = this.getGroundHeightAt(aheadX, aheadZ);
+            const minClearanceY = Math.max(terrainNow, terrainAhead) + 34;
+
+            if (enemy.position.y < minClearanceY) {
+                const climbUrgency = THREE.MathUtils.clamp((minClearanceY - enemy.position.y) * 0.025, 0.12, 0.34);
+                desiredPitch = Math.max(desiredPitch, climbUrgency);
+            }
+
+            // Inércia aerodinâmica suave de rolagem (Roll) e arfagem (Pitch)
+            enemy.roll = THREE.MathUtils.lerp(enemy.roll, desiredBank, 1 - Math.exp(-3.4 * dt));
+            enemy.pitch = THREE.MathUtils.lerp(enemy.pitch, desiredPitch, 1 - Math.exp(-2.4 * dt));
+
+            // Curva coordenada: a taxa de guinada (Yaw) vem diretamente da inclinação da asa (tan/sin do roll)
+            const turnRate = THREE.MathUtils.clamp(-Math.sin(enemy.roll) * 1.12, -1.0, 1.0);
+            enemy.yaw += turnRate * dt;
+
+            // Variação realista de velocidade de monomotor: perde um pouco subindo, ganha descendo
+            const targetSpeed = THREE.MathUtils.clamp(
+                enemy.baseSpeed - Math.sin(enemy.pitch) * 0.025,
+                0.068,
+                0.125
+            );
+            enemy.speed = THREE.MathUtils.lerp(enemy.speed, targetSpeed, 1 - Math.exp(-1.5 * dt));
+
+            // Aplicar rotação YXZ e mover estritamente na direção do nariz (sem deslizar de lado!)
             enemy.rotation.order = 'YXZ';
             enemy.rotation.set(-enemy.pitch, enemy.yaw, enemy.roll, 'YXZ');
 
-            // Movimento para frente na direção do nariz
             const moveDir = new THREE.Vector3(0, 0, 1).applyEuler(enemy.rotation);
             enemy.position.addScaledVector(moveDir, enemy.speed * 60 * dt);
 
-            // Repulsão da cidade central: se por algum motivo chegar perto de (0,0), afasta para longe
-            const distFromTown = Math.hypot(enemy.position.x, enemy.position.z);
-            if (distFromTown < 280) {
-                const pushDir = new THREE.Vector2(enemy.position.x || 1, enemy.position.z || 1).normalize();
-                enemy.position.x += pushDir.x * 25 * dt;
-                enemy.position.z += pushDir.y * 25 * dt;
-            }
-
-            // Proteção de altitude contra terreno/montanhas (voa alto, com margem de segurança de 45m)
-            const groundY = this.getGroundHeightAt(enemy.position.x, enemy.position.z);
-            const safeGroundAlt = groundY + 48;
-            if (enemy.position.y < safeGroundAlt) {
-                enemy.position.y = THREE.MathUtils.lerp(enemy.position.y, safeGroundAlt, 0.12);
-                if (enemy.pitch < 0.18) enemy.pitch = 0.18;
+            // Trava de segurança mínima absoluta apenas para não atravessar o chão
+            const hardFloor = terrainNow + 18;
+            if (enemy.position.y < hardFloor) {
+                enemy.position.y = hardFloor;
             }
 
             updateEnemyInstance(
@@ -797,13 +884,13 @@ export default class CombatManager {
                 enemy.rotation
             );
 
-            // Disparo inimigo: cadência de monomotor, velocidade do projétil moderada (~55 m/s)
+            // Disparo inimigo: apenas quando engajando e alinhado atrás/à frente do jogador
             enemy.fireCooldown -= dt;
-            if (isEngagingPlayer && distToPlayer < 240 && enemy.fireCooldown <= 0) {
+            if (enemy.state === 'intercept' && distToPlayer < 230 && enemy.fireCooldown <= 0) {
                 const aimDot = moveDir.dot(toPlayer.clone().normalize());
-                if (aimDot > 0.82) {
-                    enemy.fireCooldown = 2.4 + Math.random() * 1.5;
-                    this.spawnEnemyShot(enemy.position.clone(), playerPos, 55);
+                if (aimDot > 0.84) {
+                    enemy.fireCooldown = 2.3 + Math.random() * 1.4;
+                    this.spawnEnemyShot(enemy.position.clone(), playerPos, 56);
                 }
             }
         }
