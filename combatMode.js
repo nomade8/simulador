@@ -318,17 +318,9 @@ export default class CombatManager {
             });
         });
 
-        // Marcador aéreo vermelho/âmbar nítido sobre o caminhão
-        const marker = new THREE.Mesh(
-            new THREE.OctahedronGeometry(0.45, 0),
-            new THREE.MeshBasicMaterial({ color: isAntiAir ? 0xff4757 : 0xffa502, wireframe: true })
-        );
-        marker.position.set(0, 3.3, 0);
-        group.add(marker);
-
         group.scale.setScalar(1.4);
         this.sim.scene.add(group);
-        return { group, marker };
+        return { group };
     }
 
     spawnWave(waveNum) {
@@ -338,17 +330,16 @@ export default class CombatManager {
         const truckCount = Math.min(8, 5 + waveNum);
         for (let i = 0; i < truckCount; i++) {
             const isAA = i % 3 === 1;
-            const { group, marker } = this.createTruckMesh(isAA);
+            const { group } = this.createTruckMesh(isAA);
             const t = (0.08 + i * 0.065) % 0.9;
             const dir = i < Math.ceil(truckCount / 2) ? 1 : -1;
 
             const truck = {
                 id: `truck_${waveNum}_${i}`,
                 mesh: group,
-                marker,
                 t: dir === 1 ? t : (0.92 - i * 0.04),
                 dir,
-                speed: 0.008 + Math.random() * 0.003,
+                speed: 0.0064 + Math.random() * 0.0024,
                 isAntiAir: isAA,
                 hp: isAA ? 45 : 30,
                 fireCooldown: 2 + Math.random() * 2,
@@ -497,9 +488,6 @@ export default class CombatManager {
             Math.atan2(rightHeight - leftHeight, 1.2) * truck.dir,
             'YXZ'
         );
-        if (truck.marker) {
-            truck.marker.rotation.y += dt * 2.5;
-        }
     }
 
     setupWeaponControls() {
@@ -519,13 +507,14 @@ export default class CombatManager {
 
         window.addEventListener('pointerdown', (e) => {
             if (!this.enabled || this.sim.gameOver || this.sim.isReplaying) return;
-            // Não disparar se clicar em botões de UI ou se estiver na câmera orbital girando
+            // Ignora cliques nos controles da interface.
             if (e.target && e.target.closest('button, input, label, .ap-panel, .tod-hud, .wind-hud-selector')) return;
-            if (this.sim.cameraMode === 'orbit') return;
 
             if (e.button === 0) {
+                e.preventDefault();
                 this.isFiringGun = true;
             } else if (e.button === 2) {
+                e.preventDefault();
                 this.fireMissile();
             }
         });
@@ -534,8 +523,16 @@ export default class CombatManager {
             if (e.button === 0) this.isFiringGun = false;
         });
 
+        // Interrompe a rajada quando o mouse perde o controle da janela.
+        window.addEventListener('pointercancel', () => {
+            this.isFiringGun = false;
+        });
+        window.addEventListener('blur', () => {
+            this.isFiringGun = false;
+        });
+
         window.addEventListener('contextmenu', (e) => {
-            if (this.enabled && !this.sim.gameOver && this.sim.cameraMode !== 'orbit') {
+            if (this.enabled && !this.sim.gameOver && !this.sim.isReplaying) {
                 e.preventDefault();
             }
         });
@@ -1376,10 +1373,7 @@ export default class CombatManager {
         }
     }
 
-    /**
-     * Desenha marcadores 2D projetados na tela para todos os caças e caminhões inimigos visíveis,
-     * funcionando em qualquer câmera (3ª pessoa, 1ª pessoa ou órbita).
-     */
+    // Desenha os marcadores dos caças inimigos em qualquer câmera.
     updateScreenMarkers(camera) {
         const canvas = document.getElementById('combatOverlayCanvas');
         if (!canvas) return;
@@ -1431,25 +1425,6 @@ export default class CombatManager {
             ctx.fillText(`CAÇA ${dist}m`, sx, sy - r - 6);
         }
 
-        // Marcadores dos Caminhões na Estrada (âmbar)
-        for (const truck of this.trucks) {
-            if (!truck.alive) continue;
-            const proj = truck.position.clone().add(new THREE.Vector3(0, 2.2, 0)).project(camera);
-            if (proj.z >= 1) continue;
-
-            const sx = (proj.x + 1) * 0.5 * w;
-            const sy = (1 - proj.y) * 0.5 * h;
-            if (sx < 15 || sx > w - 15 || sy < 15 || sy > h - 15) continue;
-
-            const dist = Math.round(truck.position.distanceTo(planePos));
-            if (dist > 480) continue;
-
-            ctx.strokeStyle = truck.isAntiAir ? 'rgba(255, 140, 50, 0.85)' : 'rgba(255, 210, 90, 0.78)';
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.lineWidth = 1.3;
-            ctx.strokeRect(sx - 7, sy - 7, 14, 14);
-            ctx.fillText(`${dist}m`, sx, sy - 11);
-        }
     }
 
     /**

@@ -9,7 +9,7 @@ import CityManager from './city.js?v=1.0.5';
 import City2Manager from './city2.js?v=1.0.5';
 import Autopilot from './autopilot.js?v=1.0.7';
 import AirlinerHUD from './airlinerHud.js?v=1.0.8';
-import CombatManager from './combatMode.js?v=1.0.3';
+import CombatManager from './combatMode.js?v=1.0.4';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -1561,7 +1561,11 @@ class FlightSimulator {
 
         // Controles de mouse para a 3ª câmera (Visão Externa Orbital)
         window.addEventListener('pointerdown', (e) => {
+            if (e.target !== this.renderer.domElement) return;
+            // No combate, o botão central gira a câmera sem disputar os disparos.
+            if (this.combatManager?.enabled && !this.isReplaying && e.button !== 1) return;
             if (this.cameraMode === 'orbit') {
+                e.preventDefault();
                 this.isMouseDragging = true;
                 this.previousMousePosition = { x: e.clientX, y: e.clientY };
             }
@@ -1592,11 +1596,23 @@ class FlightSimulator {
         });
 
         window.addEventListener('wheel', (e) => {
-            if (this.cameraMode === 'orbit') {
-                this.orbitDistance += e.deltaY * 0.01;
-                this.orbitDistance = THREE.MathUtils.clamp(this.orbitDistance, 4, 50);
+            if (e.target !== this.renderer.domElement || this.gameOver) return;
+            if (this.startScreen?.classList.contains('visible')) return;
+            if (this.isReplaying) {
+                if (this.cameraMode === 'orbit') {
+                    e.preventDefault();
+                    this.orbitDistance = THREE.MathUtils.clamp(this.orbitDistance + e.deltaY * 0.01, 4, 50);
+                }
+                return;
             }
-        }, { passive: true });
+            if (e.deltaY === 0) return;
+            e.preventDefault();
+            tryStartEngineAudio();
+            // Rolar para cima aumenta a potência; para baixo reduz em passos de 5%.
+            this.planeState.throttle = THREE.MathUtils.clamp(
+                (this.planeState.throttle || 0) - Math.sign(e.deltaY) * 0.05, 0, 1
+            );
+        }, { passive: false });
     }
 
     setupStartScreen() {
