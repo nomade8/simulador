@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export default class CityManager {
-    constructor(scene, ground, craterManager = null) {
+    constructor(scene, ground, craterManager = null, runways = []) {
         this.scene = scene;
         this.ground = ground;
         this.craterManager = craterManager;
+        this.runways = runways;
         this.buildings = []; 
         this.buildingTypes = {
             house: { 
@@ -440,8 +441,8 @@ export default class CityManager {
             roughness: 0.95,
             metalness: 0.02,
             polygonOffset: true,
-            polygonOffsetFactor: -1,
-            polygonOffsetUnits: -1
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
         });
         const cityExtent = 200;
         const streetInterval = 50; 
@@ -451,15 +452,35 @@ export default class CityManager {
         const raycaster = new THREE.Raycaster();
         const origin = new THREE.Vector3();
         const down = new THREE.Vector3(0, -1, 0);
-        const asphalt = new THREE.Color(0x3c444a);
+        const asphalt = new THREE.Color(0x969da3);
         const sidewalk = new THREE.Color(0xb3afa4);
         const stripe = new THREE.Color(0xd8c28a);
         const bands = [[-4, -2.75], [-2.75, -0.09], [-0.09, 0.09], [0.09, 2.75], [2.75, 4]];
+        // Reserva a pista e suas margens antes de gerar as ruas e calçadas.
+        const runwayZones = this.runways.map(runway => {
+            const sin = Math.abs(Math.sin(runway.rotationY));
+            const cos = Math.abs(Math.cos(runway.rotationY));
+            const halfWidth = runway.width / 2 + 4;
+            const halfLength = runway.length / 2 + 8;
+            return {
+                x: runway.position.x, z: runway.position.z,
+                halfX: cos * halfWidth + sin * halfLength,
+                halfZ: sin * halfWidth + cos * halfLength
+            };
+        });
         const addStreet = (fixed, alongZ) => {
             for (let s = 0; s < 100; s++) {
                 const from = -cityExtent + s * 4;
                 const to = from + 4;
                 bands.forEach(([left, right], band) => {
+                    const minX = alongZ ? fixed + left : from;
+                    const maxX = alongZ ? fixed + right : to;
+                    const minZ = alongZ ? from : fixed + left;
+                    const maxZ = alongZ ? to : fixed + right;
+                    if (runwayZones.some(zone =>
+                        minX < zone.x + zone.halfX && maxX > zone.x - zone.halfX &&
+                        minZ < zone.z + zone.halfZ && maxZ > zone.z - zone.halfZ
+                    )) return;
                     const base = positions.length / 3;
                     const color = band === 0 || band === 4 ? sidewalk : (band === 2 && Math.floor(s / 2) % 2 === 0 ? stripe : asphalt);
                     for (const [offset, distance] of [[left, from], [right, from], [left, to], [right, to]]) {
@@ -481,8 +502,6 @@ export default class CityManager {
         }
 
         for (let z = -cityExtent; z <= cityExtent; z += streetInterval) {
-            // Se o Z da rua estiver na faixa da pista, e a rua cruzar o X central, evitamos
-            // No entanto, as ruas Z cruzam todo o X. Então vamos pular se Z estiver na área da pista.
             if (Math.abs(z) < 50) continue; 
             addStreet(z, false);
         }

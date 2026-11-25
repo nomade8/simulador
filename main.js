@@ -5,11 +5,12 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createPlayerPlane } from './planeFactory.js?v=1.0.9';
-import CityManager from './city.js?v=1.0.5';
+import CityManager from './city.js?v=1.0.7';
 import City2Manager from './city2.js?v=1.0.5';
 import Autopilot from './autopilot.js?v=1.0.7';
 import AirlinerHUD from './airlinerHud.js?v=1.0.8';
-import CombatManager from './combatMode.js?v=1.0.4';
+import CombatManager from './combatMode.js?v=1.0.5';
+import ExplosionEffects from './explosionEffects.js?v=1.0.1';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -250,7 +251,7 @@ class FlightSimulator {
             // Câmera e Renderizador (near plane 0.2 para evitar Z-fighting e renderizar pistas perfeitamente)
             this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.2, 20000);
             this.renderer = new THREE.WebGLRenderer({
-                antialias: false,
+                antialias: true,
                 logarithmicDepthBuffer: false
             });
             this.renderer.shadowMap.enabled = true;
@@ -259,7 +260,11 @@ class FlightSimulator {
             document.body.appendChild(this.renderer.domElement);
 
             // Post-processing
-            this.composer = new EffectComposer(this.renderer);
+            // Mantém a suavização das faixas também ao renderizar pelo compositor.
+            const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+                type: THREE.HalfFloatType, samples: 2
+            });
+            this.composer = new EffectComposer(this.renderer, renderTarget);
             const renderPass = new RenderPass(this.scene, this.camera);
             this.composer.addPass(renderPass);
 
@@ -617,7 +622,7 @@ class FlightSimulator {
         this.createClouds();
 
         // Cidade 1 Principal e Aeródromos secundários
-        this.cityManager = new CityManager(this.scene, this.ground);
+        this.cityManager = new CityManager(this.scene, this.ground, null, this.runways);
         this.city2Manager = new City2Manager(this.scene, this.ground, [
             new THREE.Vector3(600, 0, 700),
             new THREE.Vector3(-600, 0, -500),
@@ -1688,13 +1693,14 @@ class FlightSimulator {
         } else {
             this.renderer.shadowMap.enabled = true;
             this.renderer.shadowMap.type = THREE.BasicShadowMap;
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
             this.usePostProcessing = true;
             if (this.groundMaterial && this.highResTerrainTexture) {
                 this.groundMaterial.map = this.highResTerrainTexture;
                 this.groundMaterial.needsUpdate = true;
             }
         }
+        this.composer.setPixelRatio(this.renderer.getPixelRatio());
     }
 
     updateMinimap() {
@@ -2363,63 +2369,8 @@ class FlightSimulator {
     }
 
     createExplosion(pos, scale = 1) {
-        const explosionGroup = new THREE.Group();
-        explosionGroup.position.copy(pos);
-        this.scene.add(explosionGroup);
-
-        const particleCount = 10;
-        const particles = [];
-
-        for (let i = 0; i < particleCount; i++) {
-            const size = (0.3 + Math.random() * 0.4) * scale;
-            const geom = new THREE.SphereGeometry(size, 8, 8);
-            const color = new THREE.Color().setHSL(0.02 + Math.random() * 0.08, 1, 0.5);
-            const mat = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.9
-            });
-            const mesh = new THREE.Mesh(geom, mat);
-
-            mesh.position.set(
-                (Math.random() - 0.5) * scale * 0.8,
-                (Math.random() - 0.5) * scale * 0.8,
-                (Math.random() - 0.5) * scale * 0.8
-            );
-
-            explosionGroup.add(mesh);
-            particles.push({
-                mesh: mesh,
-                velocity: mesh.position.clone().normalize().multiplyScalar(0.08 * scale),
-                grow: 1.02 + Math.random() * 0.04
-            });
-        }
-
-        let frames = 0;
-        const maxFrames = 50;
-
-        const animateExplosion = () => {
-            frames++;
-            const life = 1 - (frames / maxFrames);
-
-            particles.forEach((p) => {
-                p.mesh.position.add(p.velocity);
-                p.mesh.scale.multiplyScalar(p.grow);
-                p.mesh.material.opacity = life;
-            });
-
-            if (frames < maxFrames) {
-                requestAnimationFrame(animateExplosion);
-            } else {
-                this.scene.remove(explosionGroup);
-                particles.forEach((p) => {
-                    p.mesh.geometry.dispose();
-                    p.mesh.material.dispose();
-                });
-            }
-        };
-
-        animateExplosion();
+        if (!this.explosionEffects) this.explosionEffects = new ExplosionEffects(this.scene);
+        this.explosionEffects.spawn(pos, scale, this.graphicsQuality === 'low');
     }
 
     createSmokeParticle(pos) {
@@ -2519,8 +2470,11 @@ class FlightSimulator {
     }
 
     animate() {
+        if (this.explosionEffects) this.explosionEffects.update();
         if (this.gameOver) {
-            this.composer.render();
+            if (this.usePostProcessing) this.composer.render();
+            else this.renderer.render(this.scene, this.camera);
+            if (this.explosionEffects?.active.length) requestAnimationFrame(() => this.animate());
             return;
         }
 

@@ -189,13 +189,23 @@ export default class CombatManager {
             this.roadGroup.add(mesh);
         };
         const asphalt = new THREE.MeshStandardMaterial({
-            color: 0x30343a, roughness: 0.96, metalness: 0, side: THREE.DoubleSide
+            color: 0x969da3, roughness: 0.96, metalness: 0, side: THREE.DoubleSide,
+            emissive: 0x62686e, emissiveIntensity: 0.12,
+            polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
         });
         const shoulder = new THREE.MeshStandardMaterial({
-            color: 0x777469, roughness: 1, side: THREE.DoubleSide
+            color: 0xb5b1a5, roughness: 1, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
         });
-        const yellow = new THREE.MeshBasicMaterial({ color: 0xeebd39, side: THREE.DoubleSide });
-        const white = new THREE.MeshBasicMaterial({ color: 0xe3e2d7, side: THREE.DoubleSide });
+        // Separa as faixas do asfalto no buffer de profundidade, inclusive em altitude.
+        const yellow = new THREE.MeshBasicMaterial({
+            color: 0xeebd39, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
+        });
+        const white = new THREE.MeshBasicMaterial({
+            color: 0xf5f3e8, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
+        });
         addBand(-4.4, -3.6, shoulder, 0, 3);
         addBand(3.6, 4.4, shoulder, 0, 3);
         addBand(-3.6, 3.6, asphalt, 0, 18);
