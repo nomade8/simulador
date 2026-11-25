@@ -104,6 +104,7 @@ export default class AirlinerHUD {
         window.addEventListener('resize', () => this.resize());
 
         window.addEventListener('keydown', (e) => {
+            if (this.simulator.isSimulationPaused()) return;
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
                 return;
             }

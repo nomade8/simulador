@@ -16,6 +16,12 @@ export default class CombatManager {
         this.wave = 1;
         this.trucksDestroyed = 0;
         this.planesDestroyed = 0;
+        this.missionState = 'idle';
+        this.missionTruckCount = 6;
+        this.missionElapsed = 0;
+        this.shotsFired = 0;
+        this.missilesFired = 0;
+        this.bombsDropped = 0;
 
         // Armamento do jogador
         this.maxAmmo = 1000;
@@ -35,7 +41,7 @@ export default class CombatManager {
         this.roadCurve = null;
         this.trucks = [];
         this.enemies = [];
-        this.maxEnemies = 6;
+        this.maxEnemies = 5;
         this.enemyInstanced = null;
 
         // Projéteis
@@ -70,6 +76,7 @@ export default class CombatManager {
         this._terrainOrigin = new THREE.Vector3();
 
         this.setupWeaponControls();
+        this.setupMissionDialogs();
     }
 
     initWorld() {
@@ -78,7 +85,6 @@ export default class CombatManager {
 
         this.createHighwayRoad();
         this.enemyInstanced = createEnemyInstancedPlanes(this.sim.scene, this.maxEnemies);
-        this.spawnWave(1);
     }
 
     setEnabled(enabled) {
@@ -90,16 +96,128 @@ export default class CombatManager {
         if (this.enabled) {
             this.initWorld();
             if (this.roadGroup) this.roadGroup.visible = true;
-            this.updateMissionHUD();
+            this.startMission();
         } else {
+            this.missionState = 'idle';
+            this.hideMissionDialogs();
             if (this.roadGroup) this.roadGroup.visible = false;
             this.clearActiveEntities();
+            const overlay = document.getElementById('combatOverlayCanvas');
+            if (overlay) overlay.style.display = 'none';
         }
     }
 
+    // Liga os modais uma única vez e mantém o foco nos botões da missão.
+    setupMissionDialogs() {
+        document.getElementById('btnBeginMission')?.addEventListener('click', () => this.beginMission());
+        document.getElementById('btnRepeatMission')?.addEventListener('click', () => {
+            if (this.missionState === 'complete') this.startMission(false);
+        });
+        document.getElementById('btnStopMission')?.addEventListener('click', () => {
+            if (this.missionState !== 'complete') return;
+            this.setEnabled(false);
+            this.sim.resetCombatFlight();
+            this.sim.startScreen.classList.add('visible');
+            this.sim.stopEngineAudio();
+            this.sim.btnStartGame?.focus();
+        });
+        for (const id of ['missionBriefingModal', 'missionResultModal']) {
+            const modal = document.getElementById(id);
+            modal?.addEventListener('keydown', event => {
+                if (event.key !== 'Tab') return;
+                const buttons = [...modal.querySelectorAll('button')];
+                const first = buttons[0];
+                const last = buttons[buttons.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+        }
+    }
+
+    hideMissionDialogs() {
+        for (const id of ['missionBriefingModal', 'missionResultModal']) {
+            const modal = document.getElementById(id);
+            modal?.classList.remove('visible');
+            modal?.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    showMissionDialog(id, buttonId) {
+        this.hideMissionDialogs();
+        const modal = document.getElementById(id);
+        modal?.classList.add('visible');
+        modal?.setAttribute('aria-hidden', 'false');
+        this.sim.clearFlightInputs();
+        this.sim.stopEngineAudio();
+        document.getElementById(buttonId)?.focus();
+    }
+
+    // Reinicia os mesmos alvos, a pontuação e o avião sem recriar o cenário.
+    startMission(showBriefing = true) {
+        this.clearActiveEntities();
+        this.sim.resetCombatFlight();
+        this.score = 0;
+        this.trucksDestroyed = 0;
+        this.planesDestroyed = 0;
+        this.missionElapsed = 0;
+        this.shotsFired = 0;
+        this.missilesFired = 0;
+        this.bombsDropped = 0;
+        this.ammo = this.maxAmmo;
+        this.bombs = this.maxBombs;
+        this.missiles = this.maxMissiles;
+        this.gunCooldown = this.bombCooldown = this.missileCooldown = 0;
+        this.missionState = 'briefing';
+        this.spawnWave(1);
+        const objective = document.getElementById('missionObjective');
+        if (objective) objective.textContent = `Destrua todos os ${this.missionTruckCount} caminhões na estrada e os ${this.maxEnemies} aviões inimigos.`;
+        if (showBriefing) this.showMissionDialog('missionBriefingModal', 'btnBeginMission');
+        else this.beginMission();
+    }
+
+    beginMission() {
+        if (!this.enabled || this.missionState !== 'briefing') return;
+        this.hideMissionDialogs();
+        this.missionState = 'active';
+        this.sim.clearFlightInputs();
+        this.sim._lastPhysicsTime = performance.now();
+        document.activeElement?.blur();
+        this.sim.startEngineAudio();
+    }
+
+    // Encerra uma única missão e aguarda a escolha antes de gerar novos inimigos.
+    completeMission() {
+        if (this.missionState !== 'active') return;
+        this.missionState = 'complete';
+        this.score += 500;
+        this.updateMissionHUD();
+        const seconds = Math.floor(this.missionElapsed);
+        const values = {
+            missionFinalScore: this.score.toLocaleString('pt-BR'),
+            missionFinalTrucks: `${this.trucksDestroyed} / ${this.missionTruckCount}`,
+            missionFinalPlanes: `${this.planesDestroyed} / ${this.maxEnemies}`,
+            missionFinalTime: `${Math.floor(seconds / 60)}min ${String(seconds % 60).padStart(2, '0')}s`,
+            missionFinalShots: this.shotsFired,
+            missionFinalMissiles: this.missilesFired,
+            missionFinalBombs: this.bombsDropped
+        };
+        for (const [id, value] of Object.entries(values)) {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        }
+        this.showMissionDialog('missionResultModal', 'btnRepeatMission');
+    }
+
     clearActiveEntities() {
+        this.isFiringGun = false;
         this.trucks.forEach(t => {
-            if (t.mesh) this.sim.scene.remove(t.mesh);
+            if (t.mesh) this.disposeMesh(t.mesh);
+            t.mesh = null;
         });
         this.trucks = [];
 
@@ -114,6 +232,7 @@ export default class CombatManager {
         [...this.bullets, ...this.enemyBullets, ...this.bombProjectiles, ...this.missileProjectiles].forEach(p => {
             if (p.mesh) this.sim.scene.remove(p.mesh);
         });
+        [...this.enemyBullets, ...this.bombProjectiles].forEach(p => this.disposeMesh(p.mesh));
         this.weaponEffects.forEach(effect => {
             this.sim.scene.remove(effect.mesh);
             effect.mesh.material.dispose();
@@ -123,6 +242,23 @@ export default class CombatManager {
         this.enemyBullets = [];
         this.bombProjectiles = [];
         this.missileProjectiles = [];
+    }
+
+    // Libera malhas exclusivas da missão sem descartar recursos compartilhados das armas.
+    disposeMesh(mesh) {
+        if (!mesh) return;
+        this.sim.scene.remove(mesh);
+        const geometries = new Set();
+        const materials = new Set();
+        mesh.traverse(object => {
+            if (object.geometry) geometries.add(object.geometry);
+            if (object.material) {
+                const list = Array.isArray(object.material) ? object.material : [object.material];
+                list.forEach(material => materials.add(material));
+            }
+        });
+        geometries.forEach(geometry => geometry.dispose());
+        materials.forEach(material => material.dispose());
     }
 
     getGroundHeightAt(x, z) {
@@ -336,8 +472,8 @@ export default class CombatManager {
     spawnWave(waveNum) {
         this.wave = waveNum;
 
-        // 1. Spawnar comboio de caminhões na estrada (5 a 7 caminhões)
-        const truckCount = Math.min(8, 5 + waveNum);
+        // Mantém a mesma quantidade de caminhões em cada repetição da missão.
+        const truckCount = this.missionTruckCount;
         for (let i = 0; i < truckCount; i++) {
             const isAA = i % 3 === 1;
             const { group } = this.createTruckMesh(isAA);
@@ -402,7 +538,7 @@ export default class CombatManager {
             });
             return { samples, length: curve.getLength() };
         });
-        const planeCount = Math.min(this.maxEnemies, 2 + waveNum);
+        const planeCount = this.maxEnemies;
         for (let i = 0; i < planeCount; i++) {
             const route = corridorRoutes[i % corridorRoutes.length];
             const startWpIdx = i % route.length;
@@ -449,7 +585,6 @@ export default class CombatManager {
             });
         }
 
-        this.showCombatToast(`🎯 ONDA ${waveNum}: ${truckCount} Caminhões na Estrada • ${planeCount} Caças Inimigos!`);
         this.updateMissionHUD();
     }
 
@@ -502,7 +637,7 @@ export default class CombatManager {
 
     setupWeaponControls() {
         window.addEventListener('keydown', (e) => {
-            if (!this.enabled || this.sim.gameOver || this.sim.isReplaying) return;
+            if (!this.enabled || this.missionState !== 'active' || this.sim.gameOver || this.sim.isReplaying) return;
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
 
             const k = e.key.toLowerCase();
@@ -516,7 +651,7 @@ export default class CombatManager {
         });
 
         window.addEventListener('pointerdown', (e) => {
-            if (!this.enabled || this.sim.gameOver || this.sim.isReplaying) return;
+            if (!this.enabled || this.missionState !== 'active' || this.sim.gameOver || this.sim.isReplaying) return;
             // Ignora cliques nos controles da interface.
             if (e.target && e.target.closest('button, input, label, .ap-panel, .tod-hud, .wind-hud-selector')) return;
 
@@ -767,8 +902,10 @@ export default class CombatManager {
     }
 
     fireGun() {
+        if (this.missionState !== 'active') return;
         if (this.ammo <= 0 || this.gunCooldown > 0 || !this.sim.airplane) return;
         this.ammo--;
+        this.shotsFired++;
         this.gunCooldown = 0.09;
 
         const forward = this.getPlaneForwardDir();
@@ -800,8 +937,10 @@ export default class CombatManager {
     }
 
     dropBomb() {
+        if (this.missionState !== 'active') return;
         if (this.bombs <= 0 || this.bombCooldown > 0 || !this.sim.airplane || this.sim._isOnGround) return;
         this.bombs--;
+        this.bombsDropped++;
         this.bombCooldown = 0.45;
 
         const forward = this.getPlaneForwardDir();
@@ -850,8 +989,10 @@ export default class CombatManager {
     }
 
     fireMissile() {
+        if (this.missionState !== 'active') return;
         if (this.missiles <= 0 || this.missileCooldown > 0 || !this.sim.airplane) return;
         this.missiles--;
+        this.missilesFired++;
         this.missileCooldown = 0.85;
 
         const forward = this.getPlaneForwardDir();
@@ -941,8 +1082,9 @@ export default class CombatManager {
     }
 
     update(dt) {
-        if (!this.enabled || this.sim.gameOver || this.sim.isReplaying) return;
+        if (!this.enabled || this.missionState !== 'active' || this.sim.gameOver || this.sim.isReplaying) return;
         dt = THREE.MathUtils.clamp(dt, 0, 0.05);
+        this.missionElapsed += dt;
         this.updateWeaponEffects(dt);
 
         if (this.gunCooldown > 0) this.gunCooldown -= dt;
@@ -977,7 +1119,6 @@ export default class CombatManager {
         }
 
         // Atualiza os caças com inércia, curvas coordenadas e passes de ataque.
-        let anyEnemyAlive = false;
         const playerForward = this.getPlaneForwardDir();
         const playerSpeed = (this.sim.planeState.speed || 0) * 0.028 * 60;
 
@@ -987,7 +1128,6 @@ export default class CombatManager {
                 hideEnemyInstance(this.enemyInstanced.instancedMeshes, enemy.index);
                 continue;
             }
-            anyEnemyAlive = true;
 
             const toPlayer = this._tempVec.copy(playerPos).sub(enemy.position);
             const distToPlayer = toPlayer.length();
@@ -1127,10 +1267,7 @@ export default class CombatManager {
 
             // Uma colisão real encerra o voo em vez de reposicionar o avião no ar.
             if (enemy.position.y <= enemy.terrainFloor + 2) {
-                enemy.alive = false;
-                this.sim.createExplosion(enemy.position.clone(), 2.2);
-                this.sim.playExplosionSound();
-                hideEnemyInstance(this.enemyInstanced.instancedMeshes, enemy.index);
+                this.damageEnemyPlane(enemy, enemy.hp);
                 continue;
             }
 
@@ -1212,7 +1349,7 @@ export default class CombatManager {
                         this.damageTruck(t, 100);
                     }
                 }
-                this.sim.scene.remove(bomb.mesh);
+                this.disposeMesh(bomb.mesh);
                 this.bombProjectiles.splice(i, 1);
             }
         }
@@ -1283,7 +1420,7 @@ export default class CombatManager {
                 this.sim.playerHealth = Math.max(0, this.sim.playerHealth - 6);
                 this.sim.updateHealthBar();
                 this.sim.startCameraShake(0.14, 10);
-                this.sim.scene.remove(eb.mesh);
+                this.disposeMesh(eb.mesh);
                 this.enemyBullets.splice(i, 1);
 
                 if (this.sim.playerHealth <= 0) {
@@ -1294,19 +1431,15 @@ export default class CombatManager {
             }
 
             if (eb.life <= 0) {
-                this.sim.scene.remove(eb.mesh);
+                this.disposeMesh(eb.mesh);
                 this.enemyBullets.splice(i, 1);
             }
         }
 
-        // 7. Checar se toda a onda foi eliminada -> iniciar próxima onda
+        // Confere os alvos após os impactos e abre o resultado sem iniciar outra onda.
         const anyTruckAlive = this.trucks.some(t => t.alive);
-        if (!anyTruckAlive && !anyEnemyAlive) {
-            this.trucks = [];
-            this.enemies = [];
-            this.score += 500;
-            this.spawnWave(this.wave + 1);
-        }
+        const anyEnemyAlive = this.enemies.some(enemy => enemy.alive);
+        if (!anyTruckAlive && !anyEnemyAlive) this.completeMission();
     }
 
     spawnEnemyShot(origin, targetPos, speed) {
@@ -1335,7 +1468,8 @@ export default class CombatManager {
             this.score += 150;
             this.sim.createExplosion(truck.position.clone().add(new THREE.Vector3(0, 1, 0)), 1.8);
             this.sim.playExplosionSound();
-            this.sim.scene.remove(truck.mesh);
+            this.disposeMesh(truck.mesh);
+            truck.mesh = null;
             this.updateMissionHUD();
         }
     }
@@ -1368,7 +1502,7 @@ export default class CombatManager {
         const elMissiles = document.getElementById('missionMissiles');
         const elWave = document.getElementById('missionWave');
 
-        if (elWave) elWave.textContent = `ONDA ${this.wave}`;
+        if (elWave) elWave.textContent = 'MISSÃO';
         if (elScore) elScore.textContent = this.score;
         if (elTrucks) elTrucks.textContent = aliveTrucks;
         if (elPlanes) elPlanes.textContent = alivePlanes;

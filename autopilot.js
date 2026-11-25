@@ -168,6 +168,7 @@ export default class Autopilot {
      */
     initEventListeners() {
         window.addEventListener('keydown', (event) => {
+            if (this.simulator.isSimulationPaused()) return;
             // Se algum botão da interface tiver o foco, remove o foco imediatamente para que o espaço não clique no botão
             if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
                 document.activeElement.blur();

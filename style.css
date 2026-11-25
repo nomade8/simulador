@@ -1426,3 +1426,93 @@ canvas {
     box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4);
 }
 
+/* Mantém os modais da missão legíveis sem efeitos gráficos pesados. */
+.mission-dialog {
+    z-index: 120;
+    padding: 20px;
+    box-sizing: border-box;
+    background: rgba(3, 9, 16, 0.8);
+}
+
+.mission-dialog-content {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 32px;
+    border: 1px solid #334958;
+    border-radius: 20px;
+    background: #101e2b;
+    color: #edf5fa;
+    text-align: left;
+}
+
+.mission-dialog-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #70d9dc;
+}
+
+.mission-dialog-content h1 {
+    margin: 12px 0 18px;
+    font-size: clamp(26px, 5vw, 34px);
+}
+
+.mission-dialog-content p {
+    margin: 12px 0;
+    line-height: 1.6;
+    color: #c9d7e1;
+}
+
+.mission-dialog-note {
+    margin: 22px 0;
+    padding: 8px 16px;
+    border-left: 3px solid #70d9dc;
+    background: #162838;
+    font-size: 14px;
+}
+
+.mission-result-score {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 24px;
+    color: #70d9dc;
+}
+
+.mission-result-score strong { font-size: 44px; }
+.mission-result-score span { font-size: 12px; letter-spacing: 2px; }
+
+.mission-result-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 20px;
+}
+
+.mission-result-grid div { padding: 12px; background: #162838; border-radius: 8px; }
+.mission-result-grid dt { font-size: 12px; color: #a9bccb; }
+.mission-result-grid dd { margin: 8px 0 0; font-size: 20px; font-weight: 700; }
+.mission-dialog-content .mission-score-note { font-size: 12px; color: #a9bccb; }
+
+.mission-dialog-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.mission-dialog-actions button {
+    flex: 1;
+    border: 1px solid #70d9dc;
+    border-radius: 10px;
+    padding: 14px 18px;
+    background: #70d9dc;
+    color: #0b1c28;
+    font: 700 14px 'Outfit', sans-serif;
+    cursor: pointer;
+}
+.mission-dialog-actions .mission-button-secondary { background: transparent; color: #edf5fa; border-color: #537086; }
+.mission-dialog-actions button:hover { filter: brightness(1.1); }
+.mission-dialog-actions button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+
+@media (max-width: 480px) {
+    .mission-dialog-content { padding: 22px; }
+    .mission-dialog-actions { flex-direction: column; }
+}
+

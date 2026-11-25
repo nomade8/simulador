@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Voo</title>
-    <link rel="stylesheet" href="./style.css?v=1.0.7">
+    <link rel="stylesheet" href="./style.css?v=1.0.8">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
     <script type="importmap">
     {
@@ -83,7 +83,7 @@
 
     <!-- HUD de Missão / Combate (visível apenas no Modo Missão/Combate) -->
     <div id="missionHud" class="mission-hud" style="display: none;">
-        <div class="mission-pill wave"><span id="missionWave">ONDA 1</span></div>
+        <div class="mission-pill wave"><span id="missionWave">MISSÃO</span></div>
         <div class="mission-pill score">SCORE <strong id="missionScore">0</strong></div>
         <div class="mission-pill">🚚 <strong id="missionTrucks">0</strong></div>
         <div class="mission-pill">✈️ <strong id="missionPlanes">0</strong></div>
@@ -128,6 +128,45 @@
             <h1 id="gameOverTitle">SIMULAÇÃO ENCERRADA</h1>
             <p id="gameOverMessage">Você colidiu!</p>
             <button onclick="location.reload()">REINICIAR</button>
+        </div>
+    </div>
+
+    <!-- Apresenta o objetivo depois de entrar no modo combate. -->
+    <div id="missionBriefingModal" class="overlay mission-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="missionBriefingTitle" aria-describedby="missionObjective">
+        <div class="mission-dialog-content">
+            <span class="mission-dialog-label">ORDEM DE OPERAÇÃO</span>
+            <h1 id="missionBriefingTitle">Missão de combate</h1>
+            <p id="missionObjective">Destrua todos os caminhões na estrada e os cinco aviões inimigos.</p>
+            <div class="mission-dialog-note">
+                <p>Use o botão esquerdo do mouse para atirar, o direito para lançar mísseis e E para soltar bombas.</p>
+                <p>Pouse na pista para rearmar. A missão termina quando todos os alvos forem eliminados.</p>
+            </div>
+            <div class="mission-dialog-actions">
+                <button id="btnBeginMission" type="button">Iniciar missão</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exibe o resultado e aguarda a decisão de repetir ou retornar ao menu. -->
+    <div id="missionResultModal" class="overlay mission-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="missionResultTitle">
+        <div class="mission-dialog-content">
+            <span class="mission-dialog-label">TODOS OS ALVOS ELIMINADOS</span>
+            <h1 id="missionResultTitle">Missão cumprida!</h1>
+            <div class="mission-result-score"><strong id="missionFinalScore">0</strong><span>PONTOS</span></div>
+            <dl class="mission-result-grid">
+                <div><dt>Caminhões destruídos</dt><dd id="missionFinalTrucks">0 / 6</dd></div>
+                <div><dt>Aviões destruídos</dt><dd id="missionFinalPlanes">0 / 5</dd></div>
+                <div><dt>Tempo de missão</dt><dd id="missionFinalTime">0min 00s</dd></div>
+                <div><dt>Tiros disparados</dt><dd id="missionFinalShots">0</dd></div>
+                <div><dt>Mísseis lançados</dt><dd id="missionFinalMissiles">0</dd></div>
+                <div><dt>Bombas lançadas</dt><dd id="missionFinalBombs">0</dd></div>
+            </dl>
+            <p class="mission-score-note">150 pontos por caminhão · 250 por avião · 500 de bônus pela missão.</p>
+            <p>Quer continuar e jogar a missão novamente ou parar?</p>
+            <div class="mission-dialog-actions">
+                <button id="btnRepeatMission" type="button">Continuar</button>
+                <button id="btnStopMission" class="mission-button-secondary" type="button">Parar e voltar ao menu</button>
+            </div>
         </div>
     </div>
 
@@ -276,7 +315,7 @@
                             <input type="radio" name="gameMode" value="combat">
                             <div class="opt-content">
                                 <span class="opt-title">🔥 MODO MISSÃO / COMBATE</span>
-                                <span class="opt-desc">Comboios de caminhões na estrada + caças inimigos! Pouse na pista para rearmar.</span>
+                                <span class="opt-desc">Destrua todos os caminhões e cinco aviões inimigos. Pouse na pista para rearmar.</span>
                             </div>
                         </label>
                     </div>
@@ -310,6 +349,6 @@
         </div>
     </div>
 
-    <script type="module" src="./main.js?v=1.0.14"></script>
+    <script type="module" src="./main.js?v=1.0.15"></script>
 </body>
 </html>

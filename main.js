@@ -7,9 +7,9 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createPlayerPlane } from './planeFactory.js?v=1.0.9';
 import CityManager from './city.js?v=1.0.7';
 import City2Manager from './city2.js?v=1.0.5';
-import Autopilot from './autopilot.js?v=1.0.7';
-import AirlinerHUD from './airlinerHud.js?v=1.0.8';
-import CombatManager from './combatMode.js?v=1.0.5';
+import Autopilot from './autopilot.js?v=1.0.8';
+import AirlinerHUD from './airlinerHud.js?v=1.0.9';
+import CombatManager from './combatMode.js?v=1.0.6';
 import ExplosionEffects from './explosionEffects.js?v=1.0.1';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
@@ -333,6 +333,7 @@ class FlightSimulator {
                 isPitchingDown: false
             };
             this._lastPhysicsTime = performance.now();
+            this.initialPlaneState = { ...this.planeState };
 
             // Simulação de Vento no Ambiente com Variação Dinâmica de Direção e Rajadas
             const randomInitialDir = Math.floor(Math.random() * 360);
@@ -1482,6 +1483,7 @@ class FlightSimulator {
 
     setupControls() {
         const tryStartEngineAudio = () => {
+            if (this.isSimulationPaused()) return;
             if (!this.engineAudioStarted && !this.gameOver && this.planeState.fuel > 0) {
                 this.startEngineAudio();
             }
@@ -1505,6 +1507,7 @@ class FlightSimulator {
         this.keyStates = keyStates;
 
         document.addEventListener('keydown', (event) => {
+            if (this.isSimulationPaused()) return;
             // Ignorar atalhos de voo se o usuário estiver digitando nos campos de texto do Piloto Automático
             if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
                 return;
@@ -1566,6 +1569,7 @@ class FlightSimulator {
 
         // Controles de mouse para a 3ª câmera (Visão Externa Orbital)
         window.addEventListener('pointerdown', (e) => {
+            if (this.isSimulationPaused()) return;
             if (e.target !== this.renderer.domElement) return;
             // No combate, o botão central gira a câmera sem disputar os disparos.
             if (this.combatManager?.enabled && !this.isReplaying && e.button !== 1) return;
@@ -1601,6 +1605,7 @@ class FlightSimulator {
         });
 
         window.addEventListener('wheel', (e) => {
+            if (this.isSimulationPaused()) return;
             if (e.target !== this.renderer.domElement || this.gameOver) return;
             if (this.startScreen?.classList.contains('visible')) return;
             if (this.isReplaying) {
@@ -1667,17 +1672,82 @@ class FlightSimulator {
 
                 const selectedGameMode = document.querySelector('input[name="gameMode"]:checked');
                 const gameMode = selectedGameMode ? selectedGameMode.value : 'free';
-                if (this.combatManager) {
-                    this.combatManager.setEnabled(gameMode === 'combat');
-                }
-
                 if (this.startScreen) {
                     this.startScreen.classList.remove('visible');
                 }
+                if (this.combatManager) {
+                    this.combatManager.setEnabled(gameMode === 'combat');
+                }
                 this.warmupSpeechSynthesis();
-                this.startEngineAudio();
+                if (gameMode !== 'combat') this.startEngineAudio();
+                this._lastPhysicsTime = performance.now();
             });
         }
+    }
+
+    // Mantém o avião e os inimigos parados enquanto o jogador lê os modais.
+    isSimulationPaused() {
+        return !!this.startScreen?.classList.contains('visible') ||
+            (this.combatManager?.enabled && this.combatManager.missionState !== 'active');
+    }
+
+    clearFlightInputs() {
+        if (this.keyStates) {
+            Object.keys(this.keyStates).forEach(key => { this.keyStates[key] = false; });
+            this.updatePlaneStateFromKeys(this.keyStates);
+        }
+        this.isMouseDragging = false;
+        if (this.combatManager) this.combatManager.isFiringGun = false;
+    }
+
+    // Restaura a decolagem na pista principal para uma nova missão ou retorno ao menu.
+    resetCombatFlight() {
+        this.stopEngineAudio();
+        this.stopReplay();
+        this.clearFlightInputs();
+        this.planeState = { ...this.initialPlaneState };
+        this.airplane.position.set(0, 0.51, -50);
+        this.airplane.rotation.set(0, 0, 0);
+        this.airplane.visible = true;
+        this.playerHealth = 100;
+        this.cameraMode = 'thirdPerson';
+        this.camera.position.copy(this.airplane.position).add(this.cameraOffset);
+        this.camera.lookAt(this.airplane.position);
+        this.cameraShake = { frames: 0, totalFrames: 0, intensity: 0 };
+        this._isOnGround = true;
+        this._onGroundOnRunway = true;
+        this._lastPhysicsTime = this.lastTime = performance.now();
+        this.lastAltitude = 0.51;
+        this.currentVerticalSpeed = 0;
+        this.wasInAir = false;
+        this.touchdownData = null;
+        this.landingReportDisplayed = false;
+        this.landingStopStartTime = null;
+        this.landingActionTriggered = false;
+        this.takeoffCalloutPlayed = false;
+        this.spokenCallouts = { 50: false, 40: false, 30: false, 20: false, 10: false };
+        this.flightHistory = [];
+        this.recordedReplayData = [];
+        this.landingModal?.classList.remove('visible');
+        if (this.landingModal) this.landingModal.style.display = 'none';
+        this.autopilot.enabled = false;
+        this.autopilot.updateUIState();
+        for (const particle of this.smokeParticles) {
+            this.scene.remove(particle.mesh);
+            particle.mesh.geometry.dispose();
+            particle.mesh.material.dispose();
+        }
+        this.smokeParticles = [];
+        if (this.explosionEffects) {
+            for (const effect of [...this.explosionEffects.active]) this.explosionEffects.remove(effect);
+        }
+        this.updateHealthBar();
+        this.updateHUD();
+    }
+
+    renderScene() {
+        if (this.usePostProcessing) this.composer.render();
+        else this.renderer.render(this.scene, this.camera);
     }
 
     setQualityMode(mode) {
@@ -2471,6 +2541,12 @@ class FlightSimulator {
 
     animate() {
         if (this.explosionEffects) this.explosionEffects.update();
+        if (this.isSimulationPaused()) {
+            this._lastPhysicsTime = this.lastTime = performance.now();
+            this.renderScene();
+            requestAnimationFrame(() => this.animate());
+            return;
+        }
         if (this.gameOver) {
             if (this.usePostProcessing) this.composer.render();
             else this.renderer.render(this.scene, this.camera);
@@ -2835,6 +2911,11 @@ class FlightSimulator {
         if (this.combatManager && this.combatManager.enabled) {
             this.combatManager.update(frameDt);
             this.combatManager.updateScreenMarkers(this.camera);
+            if (this.isSimulationPaused()) {
+                this.renderScene();
+                requestAnimationFrame(() => this.animate());
+                return;
+            }
         }
 
         // --- Atualizar Yaw, Pitch e Roll baseando-se nos controles ---
