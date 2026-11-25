@@ -14,7 +14,7 @@ export default class City2Manager {
                 scale: [5, 2.5, 5], 
                 count: 50, 
                 health: 100,
-                name: 'Casa do Aeródromo' 
+                name: 'Airfield House'
             },
             building: { 
                 colors: [0xa3b1ba, 0xbec7cc, 0x7f939f, 0x9ba9ad],
@@ -22,7 +22,7 @@ export default class City2Manager {
                 heightScaleRange: [1.0, 1.4], 
                 count: 50, 
                 health: 250,
-                name: 'Torre de Controle' 
+                name: 'Control Tower'
             }
         };
         

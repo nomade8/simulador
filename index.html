@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="en-US">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Voo</title>
+    <title>Flight Simulator</title>
     <link rel="stylesheet" href="./style.css?v=1.0.8">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap" rel="stylesheet">
     <script type="importmap">
@@ -28,11 +28,11 @@
 <body>
     <div id="hud">
         <div class="hud-item">
-            <span class="label">VELOCIDADE</span>
+            <span class="label">SPEED</span>
             <span id="speed" class="value">0</span> <span class="unit">km/h</span>
         </div>
         <div class="hud-item">
-            <span class="label">POTÊNCIA (N1)</span>
+            <span class="label">POWER (N1)</span>
             <div class="bar-container power-bar-container">
                 <div id="powerBar" class="bar power" style="width: 0%"></div>
                 <div id="powerTargetMarker" class="power-target-marker" style="left: 0%"></div>
@@ -44,10 +44,10 @@
             <span id="altitude" class="value">0</span> <span class="unit">m</span>
         </div>
         <div class="hud-item">
-            <span class="label">VENTO</span>
+            <span class="label">WIND</span>
             <div class="wind-info">
                 <span id="windSpeed" class="value">0</span> <span class="unit">km/h</span>
-                <span id="windArrow" class="wind-arrow" title="Direção do Vento">⬆</span>
+                <span id="windArrow" class="wind-arrow" title="Wind Direction">⬆</span>
                 <span id="windCardinal" class="wind-cardinal">N 000°</span>
             </div>
         </div>
@@ -56,18 +56,18 @@
             <span id="flaps" class="value">0°</span>
         </div>
         <div class="hud-item">
-            <span class="label">TREM DE POUSO</span>
-            <span id="gearStatus" class="value">BAIXADO</span>
+            <span class="label">LANDING GEAR</span>
+            <span id="gearStatus" class="value">DOWN</span>
         </div>
         <div class="hud-item">
-            <span class="label">COMBUSTÍVEL</span>
+            <span class="label">FUEL</span>
             <div class="bar-container">
                 <div id="fuelBar" class="bar fuel"></div>
             </div>
             <span id="fuel" class="value">100</span>%
         </div>
         <div class="hud-item">
-            <span class="label">INTEGRIDADE</span>
+            <span class="label">AIRCRAFT HEALTH</span>
             <div class="bar-container">
                 <div id="healthBar" class="bar health"></div>
             </div>
@@ -76,14 +76,14 @@
     </div>
 
     <div id="headingDisplay" class="heading-hud">
-        <span class="label">PROA / HDG</span>
+        <span class="label">HEADING / HDG</span>
         <span id="headingValue" class="value">000°</span>
         <span id="cardinalValue" class="cardinal">N</span>
     </div>
 
     <!-- HUD de Missão / Combate (visível apenas no Modo Missão/Combate) -->
     <div id="missionHud" class="mission-hud" style="display: none;">
-        <div class="mission-pill wave"><span id="missionWave">MISSÃO</span></div>
+        <div class="mission-pill wave"><span id="missionWave">MISSION</span></div>
         <div class="mission-pill score">SCORE <strong id="missionScore">0</strong></div>
         <div class="mission-pill">🚚 <strong id="missionTrucks">0</strong></div>
         <div class="mission-pill">✈️ <strong id="missionPlanes">0</strong></div>
@@ -95,29 +95,29 @@
 
     <!-- Seletor de Horário do Dia no HUD -->
     <div id="timeOfDaySelector" class="tod-hud">
-        <span class="tod-label">HORÁRIO DO DIA (T)</span>
+        <span class="tod-label">TIME OF DAY (T)</span>
         <div class="tod-buttons">
-            <button class="tod-btn" data-time="madrugada" title="Madrugada (04:00)">🌌 Madrugada</button>
-            <button class="tod-btn" data-time="nascer_do_sol" title="Nascer do Sol (06:30)">🌅 Nascer do Sol</button>
-            <button class="tod-btn active" data-time="dia" title="Dia Normal (12:00)">☀️ Dia</button>
-            <button class="tod-btn" data-time="por_do_sol" title="Pôr do Sol (18:30)">🌇 Pôr do Sol</button>
-            <button class="tod-btn" data-time="noite" title="Noite (23:00)">🌙 Noite</button>
+            <button class="tod-btn" data-time="madrugada" title="Early Morning (4:00 AM)">🌌 Early Morning</button>
+            <button class="tod-btn" data-time="nascer_do_sol" title="Sunrise (6:30 AM)">🌅 Sunrise</button>
+            <button class="tod-btn active" data-time="dia" title="Daytime (12:00 PM)">☀️ Daytime</button>
+            <button class="tod-btn" data-time="por_do_sol" title="Sunset (6:30 PM)">🌇 Sunset</button>
+            <button class="tod-btn" data-time="noite" title="Night (11:00 PM)">🌙 Night</button>
         </div>
     </div>
 
     <!-- Seletor de Nível e Direção de Vento no HUD -->
     <div id="windSelector" class="wind-hud-selector">
-        <span class="tod-label">INTENSIDADE & DIREÇÃO DO VENTO</span>
+        <span class="tod-label">WIND STRENGTH & DIRECTION</span>
         <div class="wind-buttons">
-            <button class="wind-btn" data-wind="fraco" title="Vento Fraco (Brisa suave)">🍃 Fraco</button>
-            <button class="wind-btn active" data-wind="medio" title="Vento Médio (Desafio moderado)">💨 Médio</button>
-            <button class="wind-btn" data-wind="forte" title="Vento Forte / Tempestade (Emoção máxima no pouso!)">🌪️ Forte</button>
-            <button class="wind-btn wind-dir-btn" id="btnRandomWindDir" title="Sortear nova direção do vento">🎲 Direção</button>
+            <button class="wind-btn" data-wind="fraco" title="Light Wind (Gentle Breeze)">🍃 Light</button>
+            <button class="wind-btn active" data-wind="medio" title="Moderate Wind (Moderate Challenge)">💨 Moderate</button>
+            <button class="wind-btn" data-wind="forte" title="Strong Wind / Storm (Challenging Landings)">🌪️ Strong</button>
+            <button class="wind-btn wind-dir-btn" id="btnRandomWindDir" title="Randomize wind direction">🎲 Direction</button>
         </div>
     </div>
 
     <!-- Toast de Notificação de Mudança de Horário e Vento -->
-    <div id="todToast" class="tod-toast">☀️ HORÁRIO: DIA</div>
+    <div id="todToast" class="tod-toast">☀️ TIME OF DAY: DAYTIME</div>
 
     <canvas id="combatOverlayCanvas" style="position: fixed; inset: 0; pointer-events: none; z-index: 48; display: none;"></canvas>
 
@@ -125,24 +125,24 @@
 
     <div id="gameOverScreen" class="overlay">
         <div class="overlay-content">
-            <h1 id="gameOverTitle">SIMULAÇÃO ENCERRADA</h1>
-            <p id="gameOverMessage">Você colidiu!</p>
-            <button onclick="location.reload()">REINICIAR</button>
+            <h1 id="gameOverTitle">SIMULATION ENDED</h1>
+            <p id="gameOverMessage">You crashed!</p>
+            <button onclick="location.reload()">RESTART</button>
         </div>
     </div>
 
     <!-- Apresenta o objetivo depois de entrar no modo combate. -->
     <div id="missionBriefingModal" class="overlay mission-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="missionBriefingTitle" aria-describedby="missionObjective">
         <div class="mission-dialog-content">
-            <span class="mission-dialog-label">ORDEM DE OPERAÇÃO</span>
-            <h1 id="missionBriefingTitle">Missão de combate</h1>
-            <p id="missionObjective">Destrua todos os caminhões na estrada e os cinco aviões inimigos.</p>
+            <span class="mission-dialog-label">MISSION BRIEFING</span>
+            <h1 id="missionBriefingTitle">Combat Mission</h1>
+            <p id="missionObjective">Destroy all six trucks and five enemy aircraft, then land on a runway and come to a stop to finish the mission.</p>
             <div class="mission-dialog-note">
-                <p>Use o botão esquerdo do mouse para atirar, o direito para lançar mísseis e E para soltar bombas.</p>
-                <p>Pouse na pista para rearmar. A missão termina quando todos os alvos forem eliminados.</p>
+                <p>Left-click to fire the cannon, right-click to launch missiles, and press E to drop bombs.</p>
+                <p>Land on a runway to rearm. After destroying all targets, lower the landing gear, land, and stop with the throttle at idle to view your mission summary.</p>
             </div>
             <div class="mission-dialog-actions">
-                <button id="btnBeginMission" type="button">Iniciar missão</button>
+                <button id="btnBeginMission" type="button">Start Mission</button>
             </div>
         </div>
     </div>
@@ -150,22 +150,22 @@
     <!-- Exibe o resultado e aguarda a decisão de repetir ou retornar ao menu. -->
     <div id="missionResultModal" class="overlay mission-dialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="missionResultTitle">
         <div class="mission-dialog-content">
-            <span class="mission-dialog-label">TODOS OS ALVOS ELIMINADOS</span>
-            <h1 id="missionResultTitle">Missão cumprida!</h1>
-            <div class="mission-result-score"><strong id="missionFinalScore">0</strong><span>PONTOS</span></div>
+            <span class="mission-dialog-label">ALL TARGETS DESTROYED · SAFE LANDING CONFIRMED</span>
+            <h1 id="missionResultTitle">Mission Accomplished!</h1>
+            <div class="mission-result-score"><strong id="missionFinalScore">0</strong><span>POINTS</span></div>
             <dl class="mission-result-grid">
-                <div><dt>Caminhões destruídos</dt><dd id="missionFinalTrucks">0 / 6</dd></div>
-                <div><dt>Aviões destruídos</dt><dd id="missionFinalPlanes">0 / 5</dd></div>
-                <div><dt>Tempo de missão</dt><dd id="missionFinalTime">0min 00s</dd></div>
-                <div><dt>Tiros disparados</dt><dd id="missionFinalShots">0</dd></div>
-                <div><dt>Mísseis lançados</dt><dd id="missionFinalMissiles">0</dd></div>
-                <div><dt>Bombas lançadas</dt><dd id="missionFinalBombs">0</dd></div>
+                <div><dt>Trucks destroyed</dt><dd id="missionFinalTrucks">0 / 6</dd></div>
+                <div><dt>Aircraft destroyed</dt><dd id="missionFinalPlanes">0 / 5</dd></div>
+                <div><dt>Mission time</dt><dd id="missionFinalTime">0m 00s</dd></div>
+                <div><dt>Shots fired</dt><dd id="missionFinalShots">0</dd></div>
+                <div><dt>Missiles launched</dt><dd id="missionFinalMissiles">0</dd></div>
+                <div><dt>Bombs dropped</dt><dd id="missionFinalBombs">0</dd></div>
             </dl>
-            <p class="mission-score-note">150 pontos por caminhão · 250 por avião · 500 de bônus pela missão.</p>
-            <p>Quer continuar e jogar a missão novamente ou parar?</p>
+            <p class="mission-score-note">150 points per truck · 250 per aircraft · 500 mission completion bonus.</p>
+            <p>Would you like to play the mission again or return to the main menu?</p>
             <div class="mission-dialog-actions">
-                <button id="btnRepeatMission" type="button">Continuar</button>
-                <button id="btnStopMission" class="mission-button-secondary" type="button">Parar e voltar ao menu</button>
+                <button id="btnRepeatMission" type="button">Continue</button>
+                <button id="btnStopMission" class="mission-button-secondary" type="button">Stop and Return to Menu</button>
             </div>
         </div>
     </div>
@@ -174,7 +174,7 @@
     <div id="landingModal" class="landing-hud-report">
         <div class="landing-hud-header">
             <span class="landing-hud-icon">🛬</span>
-            <span class="landing-hud-title">RELATÓRIO DE POUSO</span>
+            <span class="landing-hud-title">LANDING REPORT</span>
         </div>
         <div class="landing-hud-main">
             <div class="rating-badge" id="landingGrade">-</div>
@@ -186,7 +186,7 @@
         <div class="score-details">
             <div class="detail-item">
                 <div class="detail-header">
-                    <span>Suavidade</span>
+                    <span>Touchdown Smoothness</span>
                     <span id="forceValue" class="detail-val">0.0 m/s</span>
                 </div>
                 <div class="bar-container">
@@ -198,124 +198,124 @@
 
     <!-- Replay HUD Overlay -->
     <div id="replayHUD" class="replay-hud">
-        <div class="replay-badge">🔴 REPLAY DOS ÚLTIMOS 20 SEGUNDOS</div>
+        <div class="replay-badge">🔴 REPLAY OF THE LAST 20 SECONDS</div>
         <div class="replay-controls">
-            <button id="btnReplayPlayPause" class="replay-btn">⏸ Pausar</button>
-            <button id="btnReplaySpeed" class="replay-btn">⚡ Vel: 2.0x</button>
-            <button id="btnReplayRestart" class="replay-btn">🔄 Reiniciar</button>
-            <button id="btnReplayExit" class="replay-btn replay-exit">❌ Sair do Replay</button>
+            <button id="btnReplayPlayPause" class="replay-btn">⏸ Pause</button>
+            <button id="btnReplaySpeed" class="replay-btn">⚡ Speed: 2.0x</button>
+            <button id="btnReplayRestart" class="replay-btn">🔄 Restart</button>
+            <button id="btnReplayExit" class="replay-btn replay-exit">❌ Exit Replay</button>
         </div>
         <div class="replay-progress-container">
             <div id="replayProgressBar" class="replay-progress-bar"></div>
         </div>
-        <div class="replay-hint">Pressione 'V' para alternar o ângulo da câmera (Traseira / Cockpit / Órbita 360° Mouse)</div>
+        <div class="replay-hint">Press V to switch camera views (Rear / Cockpit / 360° Mouse Orbit)</div>
     </div>
 
     <div id="controls-hint">
-        <p>Setas / WASD: Pilotar | Rodinha: Potência | X: +Potência | Espaço: -Potência/Freio | Clique esq: Tiro | Clique dir: Míssil | F: Flaps | G: Trem | P: Piloto | H: HUD | T: Horário | R: Replay | V: Câmeras</p>
+        <p>Arrow Keys / WASD: Fly | Mouse Wheel: Throttle | X: Increase Throttle | Space: Reduce Throttle / Brake | Left-click: Fire | Right-click: Missile | E: Bomb | F: Flaps | G: Gear | P: Autopilot | H: HUD | T: Time | R: Replay | V: Cameras</p>
     </div>
 
     <!-- Minimapa HUD no Canto Inferior Direito -->
     <div id="minimapContainer" class="minimap-hud">
         <canvas id="minimapCanvas" width="180" height="180"></canvas>
-        <div class="minimap-title">RADAR / PISTAS</div>
+        <div class="minimap-title">RADAR / RUNWAYS</div>
     </div>
 
     <!-- Tela Inicial de Entrada (Start Screen Overlay) -->
     <div id="startScreen" class="overlay visible">
         <div class="modal-content start-screen-modal">
             <div class="start-header">
-                <h1>SIMULADOR DE VOO</h1>
+                <h1>FLIGHT SIMULATOR</h1>
             </div>
 
             <div class="start-body">
                 <!-- Seção de Seleção de Horário do Dia -->
                 <div class="info-card tod-card">
-                    <h3>🌌 HORÁRIO INICIAL DE VOO</h3>
+                    <h3>🌌 STARTING TIME OF DAY</h3>
                     <div class="tod-start-options">
-                        <button type="button" class="tod-start-btn" data-time="madrugada">🌌 Madrugada</button>
-                        <button type="button" class="tod-start-btn" data-time="nascer_do_sol">🌅 Nascer do Sol</button>
-                        <button type="button" class="tod-start-btn active" data-time="dia">☀️ Dia</button>
-                        <button type="button" class="tod-start-btn" data-time="por_do_sol">🌇 Pôr do Sol</button>
-                        <button type="button" class="tod-start-btn" data-time="noite">🌙 Noite</button>
+                        <button type="button" class="tod-start-btn" data-time="madrugada">🌌 Early Morning</button>
+                        <button type="button" class="tod-start-btn" data-time="nascer_do_sol">🌅 Sunrise</button>
+                        <button type="button" class="tod-start-btn active" data-time="dia">☀️ Daytime</button>
+                        <button type="button" class="tod-start-btn" data-time="por_do_sol">🌇 Sunset</button>
+                        <button type="button" class="tod-start-btn" data-time="noite">🌙 Night</button>
                     </div>
                 </div>
 
                 <!-- Seção de Seleção de Intensidade e Direção do Vento -->
                 <div class="info-card wind-card">
-                    <h3>💨 INTENSIDADE E DIREÇÃO DO VENTO NO POUSO</h3>
+                    <h3>💨 LANDING WIND STRENGTH AND DIRECTION</h3>
                     <div class="wind-start-options">
-                        <button type="button" class="wind-start-btn" data-wind="fraco">🍃 Fraco (Brisa)</button>
-                        <button type="button" class="wind-start-btn active" data-wind="medio">💨 Médio (Desafio)</button>
-                        <button type="button" class="wind-start-btn" data-wind="forte">🌪️ Forte (Emoção!)</button>
+                        <button type="button" class="wind-start-btn" data-wind="fraco">🍃 Light (Breeze)</button>
+                        <button type="button" class="wind-start-btn active" data-wind="medio">💨 Moderate (Challenge)</button>
+                        <button type="button" class="wind-start-btn" data-wind="forte">🌪️ Strong (Storm)</button>
                     </div>
                     <div style="margin-top: 10px; text-align: center;">
-                        <button type="button" id="btnStartRandomWindDir" class="wind-start-btn" style="width: 100%; background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.3);">🎲 Sortear Nova Direção de Vento</button>
+                        <button type="button" id="btnStartRandomWindDir" class="wind-start-btn" style="width: 100%; background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.3);">🎲 Randomize Wind Direction</button>
                     </div>
                 </div>
 
                 <!-- Seção de Velocidades Ideais -->
                 <div class="info-card speeds-card">
-                    <h3>✈️ VELOCIDADES IDEAIS DE VOO</h3>
+                    <h3>✈️ RECOMMENDED FLIGHT SPEEDS</h3>
                     <div class="speeds-grid">
                         <div class="speed-item takeoff">
-                            <span class="speed-label">🛫 DECOLAGEM</span>
+                            <span class="speed-label">🛫 TAKEOFF</span>
                             <span class="speed-val">220 - 260 km/h</span>
-                            <span class="speed-desc">Dê potência (X), Flaps 15° (F) e puxe o manche (S / Seta Baixo)</span>
+                            <span class="speed-desc">Increase throttle (X), set flaps to 15° (F), and pitch up (S / Down Arrow)</span>
                         </div>
                         <div class="speed-item landing">
-                            <span class="speed-label">🛬 POUSO</span>
+                            <span class="speed-label">🛬 LANDING</span>
                             <span class="speed-val">200 - 230 km/h</span>
-                            <span class="speed-desc">Flaps 30° (F), Trem Baixado (G), Toque suave (< 3.0 m/s)</span>
+                            <span class="speed-desc">Flaps 30° (F), gear down (G), gentle touchdown (&lt; 3.0 m/s)</span>
                         </div>
                         <div class="speed-item stall">
-                            <span class="speed-label">⚠️ STALL (QUEDA)</span>
-                            <span class="speed-val">< 185 km/h</span>
-                            <span class="speed-desc">Evite voar abaixo desta velocidade para não cair por gravidade</span>
+                            <span class="speed-label">⚠️ STALL</span>
+                            <span class="speed-val">&lt; 185 km/h</span>
+                            <span class="speed-desc">Stay above this speed to maintain lift and avoid a stall</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Seção de Controles do Avião -->
                 <div class="info-card controls-card">
-                    <h3>🎮 CONTROLES DO AVIÃO</h3>
+                    <h3>🎮 AIRCRAFT CONTROLS</h3>
                     <div class="controls-grid">
-                        <div class="ctrl-item"><kbd>RODINHA ↑ / ↓</kbd> <span>Aumentar / Reduzir Potência</span></div>
-                        <div class="ctrl-item"><kbd>BOTÃO CENTRAL</kbd> <span>Girar Câmera Orbital (Combate)</span></div>
-                        <div class="ctrl-item"><kbd>X</kbd> <span>Aumentar Potência (N1)</span></div>
-                        <div class="ctrl-item"><kbd>ESPAÇO</kbd> <span>Reduzir Potência / Freio</span></div>
-                        <div class="ctrl-item"><kbd>S</kbd> / <kbd>↓</kbd> <span>Subir Bico (Cabrar)</span></div>
-                        <div class="ctrl-item"><kbd>W</kbd> / <kbd>↑</kbd> <span>Baixar Bico (Picar)</span></div>
-                        <div class="ctrl-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Inclinar Asas (Roll)</span></div>
+                        <div class="ctrl-item"><kbd>WHEEL ↑ / ↓</kbd> <span>Increase / Reduce Throttle</span></div>
+                        <div class="ctrl-item"><kbd>MIDDLE BUTTON</kbd> <span>Rotate Orbit Camera (Combat)</span></div>
+                        <div class="ctrl-item"><kbd>X</kbd> <span>Increase Throttle (N1)</span></div>
+                        <div class="ctrl-item"><kbd>SPACE</kbd> <span>Reduce Throttle / Brake</span></div>
+                        <div class="ctrl-item"><kbd>S</kbd> / <kbd>↓</kbd> <span>Pitch Up</span></div>
+                        <div class="ctrl-item"><kbd>W</kbd> / <kbd>↑</kbd> <span>Pitch Down</span></div>
+                        <div class="ctrl-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Roll Left / Right</span></div>
                         <div class="ctrl-item"><kbd>F</kbd> <span>Flaps (0° → 15° → 30°)</span></div>
-                        <div class="ctrl-item"><kbd>G</kbd> <span>Trem de Pouso (Sobe/Desce)</span></div>
-                        <div class="ctrl-item"><kbd>T</kbd> <span>Alternar Céu / Horário do Dia</span></div>
-                        <div class="ctrl-item"><kbd>V</kbd> <span>Alternar Câmeras</span></div>
-                        <div class="ctrl-item"><kbd>P</kbd> <span>Piloto Automático</span></div>
-                        <div class="ctrl-item"><kbd>H</kbd> <span>HUD Avião Comercial</span></div>
-                        <div class="ctrl-item"><kbd>R</kbd> <span>Replay dos Últimos 20s</span></div>
-                        <div class="ctrl-item"><kbd>Q</kbd> / <kbd>CLIQUE ESQ</kbd> <span>Canhão (Combate)</span></div>
-                        <div class="ctrl-item"><kbd>E</kbd> <span>Soltar Bomba (Combate)</span></div>
-                        <div class="ctrl-item"><kbd>C</kbd> / <kbd>CLIQUE DIR</kbd> <span>Míssil Guiado (Combate)</span></div>
+                        <div class="ctrl-item"><kbd>G</kbd> <span>Landing Gear (Up / Down)</span></div>
+                        <div class="ctrl-item"><kbd>T</kbd> <span>Change Time of Day</span></div>
+                        <div class="ctrl-item"><kbd>V</kbd> <span>Switch Cameras</span></div>
+                        <div class="ctrl-item"><kbd>P</kbd> <span>Autopilot</span></div>
+                        <div class="ctrl-item"><kbd>H</kbd> <span>Airliner HUD</span></div>
+                        <div class="ctrl-item"><kbd>R</kbd> <span>Replay Last 20 Seconds</span></div>
+                        <div class="ctrl-item"><kbd>Q</kbd> / <kbd>LEFT-CLICK</kbd> <span>Cannon (Combat)</span></div>
+                        <div class="ctrl-item"><kbd>E</kbd> <span>Drop Bomb (Combat)</span></div>
+                        <div class="ctrl-item"><kbd>C</kbd> / <kbd>RIGHT-CLICK</kbd> <span>Guided Missile (Combat)</span></div>
                     </div>
                 </div>
 
                 <!-- Seção de Seleção de Modo de Jogo -->
                 <div class="info-card mode-card">
-                    <h3>🎯 MODO DE JOGO</h3>
+                    <h3>🎯 GAME MODE</h3>
                     <div class="quality-options">
                         <label class="quality-option active" id="optModeFree">
                             <input type="radio" name="gameMode" value="free" checked>
                             <div class="opt-content">
-                                <span class="opt-title">✈️ VOO LIVRE (CIVIL)</span>
-                                <span class="opt-desc">Simulação pura de decolagem, navegação e pouso sem combate.</span>
+                                <span class="opt-title">✈️ FREE FLIGHT (CIVILIAN)</span>
+                                <span class="opt-desc">Practice takeoffs, navigation, and landings.</span>
                             </div>
                         </label>
                         <label class="quality-option" id="optModeCombat">
                             <input type="radio" name="gameMode" value="combat">
                             <div class="opt-content">
-                                <span class="opt-title">🔥 MODO MISSÃO / COMBATE</span>
-                                <span class="opt-desc">Destrua todos os caminhões e cinco aviões inimigos. Pouse na pista para rearmar.</span>
+                                <span class="opt-title">🔥 MISSION / COMBAT MODE</span>
+                                <span class="opt-desc">Destroy all trucks and five enemy aircraft, then land and stop on a runway to finish. Land to rearm during the mission.</span>
                             </div>
                         </label>
                     </div>
@@ -323,20 +323,20 @@
 
                 <!-- Seção de Seleção de Modo Gráfico / Desempenho -->
                 <div class="info-card quality-card">
-                    <h3>⚙️ MODO DE DESEMPENHO E GRÁFICOS</h3>
+                    <h3>⚙️ GRAPHICS AND PERFORMANCE</h3>
                     <div class="quality-options">
                         <label class="quality-option" id="optQualityLow">
                             <input type="radio" name="graphicsQuality" value="low">
                             <div class="opt-content">
-                                <span class="opt-title">⚡ MODO LEVE (DESEMPENHO)</span>
-                                <span class="opt-desc">Textura otimizada e sombras desativadas. Recomendado para computadores mais fracos.</span>
+                                <span class="opt-title">⚡ PERFORMANCE MODE</span>
+                                <span class="opt-desc">Optimized textures and disabled shadows. Recommended for less powerful computers.</span>
                             </div>
                         </label>
                         <label class="quality-option active" id="optQualityHigh">
                             <input type="radio" name="graphicsQuality" value="high" checked>
                             <div class="opt-content">
-                                <span class="opt-title">🌟 MODO ALTA QUALIDADE</span>
-                                <span class="opt-desc">Textura HD detalhada, sombras realistas e pós-processamento completo.</span>
+                                <span class="opt-title">🌟 HIGH QUALITY MODE</span>
+                                <span class="opt-desc">Detailed HD textures, realistic shadows, and full post-processing.</span>
                             </div>
                         </label>
                     </div>
@@ -344,11 +344,11 @@
             </div>
 
             <div class="start-footer">
-                <button id="btnStartGame" class="btn-start-simulation">🛫 INICIAR SIMULAÇÃO DE VOO</button>
+                <button id="btnStartGame" class="btn-start-simulation">🛫 START FLIGHT SIMULATION</button>
             </div>
         </div>
     </div>
 
-    <script type="module" src="./main.js?v=1.0.15"></script>
+    <script type="module" src="./main.js?v=1.0.16"></script>
 </body>
 </html>

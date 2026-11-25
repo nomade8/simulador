@@ -5,11 +5,11 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createPlayerPlane } from './planeFactory.js?v=1.0.9';
-import CityManager from './city.js?v=1.0.7';
-import City2Manager from './city2.js?v=1.0.5';
-import Autopilot from './autopilot.js?v=1.0.8';
+import CityManager from './city.js?v=1.0.8';
+import City2Manager from './city2.js?v=1.0.6';
+import Autopilot from './autopilot.js?v=1.0.9';
 import AirlinerHUD from './airlinerHud.js?v=1.0.9';
-import CombatManager from './combatMode.js?v=1.0.6';
+import CombatManager from './combatMode.js?v=1.0.7';
 import ExplosionEffects from './explosionEffects.js?v=1.0.1';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
@@ -17,7 +17,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const TIME_OF_DAY_PRESETS = {
     madrugada: {
-        name: '🌌 MADRUGADA (04:00)',
+        name: '🌌 EARLY MORNING (4:00 AM)',
         skyTop: '#060a17',
         skyMid: '#121d38',
         skyBottom: '#1a284c',
@@ -36,7 +36,7 @@ const TIME_OF_DAY_PRESETS = {
         landingLightOn: true
     },
     nascer_do_sol: {
-        name: '🌅 NASCER DO SOL (06:30)',
+        name: '🌅 SUNRISE (6:30 AM)',
         skyTop: '#3a506b',
         skyMid: '#ff7e5f',
         skyBottom: '#feb47b',
@@ -55,7 +55,7 @@ const TIME_OF_DAY_PRESETS = {
         landingLightOn: false
     },
     dia: {
-        name: '☀️ DIA NORMAL (12:00)',
+        name: '☀️ DAYTIME (12:00 PM)',
         skyTop: '#44c0f1',
         skyMid: '#3786ee',
         skyBottom: '#076794',
@@ -74,7 +74,7 @@ const TIME_OF_DAY_PRESETS = {
         landingLightOn: false
     },
     por_do_sol: {
-        name: '🌇 PÔR DO SOL (18:30)',
+        name: '🌇 SUNSET (6:30 PM)',
         skyTop: '#2b1055',
         skyMid: '#ff512f',
         skyBottom: '#f09819',
@@ -93,7 +93,7 @@ const TIME_OF_DAY_PRESETS = {
         landingLightOn: false
     },
     noite: {
-        name: '🌙 NOITE (23:00)',
+        name: '🌙 NIGHT (11:00 PM)',
         skyTop: '#020409',
         skyMid: '#060d1f',
         skyBottom: '#0c1836',
@@ -115,7 +115,7 @@ const TIME_OF_DAY_PRESETS = {
 
 const WIND_PRESETS = {
     fraco: {
-        name: '🍃 FRACO (Brisa Suave)',
+        name: '🍃 LIGHT (Gentle Breeze)',
         baseSpeed: 12.0,
         minSpeed: 5,
         maxSpeed: 22,
@@ -124,7 +124,7 @@ const WIND_PRESETS = {
         dirNoiseAmp: 18.0
     },
     medio: {
-        name: '💨 MÉDIO (Desafio Moderado)',
+        name: '💨 MODERATE (Moderate Challenge)',
         baseSpeed: 30.0,
         minSpeed: 15,
         maxSpeed: 55,
@@ -133,7 +133,7 @@ const WIND_PRESETS = {
         dirNoiseAmp: 30.0
     },
     forte: {
-        name: '🌪️ FORTE (Emoção Máxima no Pouso!)',
+        name: '🌪️ STRONG (Challenging Landings)',
         baseSpeed: 58.0,
         minSpeed: 35,
         maxSpeed: 65,
@@ -1253,7 +1253,7 @@ class FlightSimulator {
     showTODToast(name) {
         const toast = document.getElementById('todToast');
         if (!toast) return;
-        toast.textContent = `HORÁRIO: ${name}`;
+        toast.textContent = `TIME OF DAY: ${name}`;
         toast.classList.add('visible');
 
         if (this.todToastTimeout) clearTimeout(this.todToastTimeout);
@@ -1307,7 +1307,7 @@ class FlightSimulator {
         const cardName = ptCardinals[cardIdx];
 
         if (showToast) {
-            this.showWindToast(`DIREÇÃO ${cardName} (${newDir.toString().padStart(3, '0')}°)`);
+            this.showWindToast(`DIRECTION ${cardName} (${newDir.toString().padStart(3, '0')}°)`);
         }
     }
 
@@ -1351,7 +1351,7 @@ class FlightSimulator {
     showWindToast(name) {
         const toast = document.getElementById('todToast');
         if (!toast) return;
-        toast.textContent = `VENTO: ${name}`;
+        toast.textContent = `WIND: ${name}`;
         toast.classList.add('visible');
 
         if (this.todToastTimeout) clearTimeout(this.todToastTimeout);
@@ -1383,7 +1383,7 @@ class FlightSimulator {
         const powerBar = document.getElementById('powerBar');
         const powerTargetEl = document.getElementById('powerTargetMarker');
         if (powerEl) {
-            powerEl.textContent = this.planeState.isBraking ? 'FREIO' : `${powerPct}%`;
+            powerEl.textContent = this.planeState.isBraking ? 'BRAKE' : `${powerPct}%`;
             powerEl.style.color = this.planeState.isBraking ? '#ff6b6b' : (powerPct >= 90 ? '#ffb347' : '#ffffff');
         }
         if (powerBar) {
@@ -1401,7 +1401,7 @@ class FlightSimulator {
 
         const gearEl = document.getElementById('gearStatus');
         if (gearEl) {
-            gearEl.textContent = this.planeState.gearRetracted ? "BAIXADO" : "RECOLHIDO";
+            gearEl.textContent = this.planeState.gearRetracted ? "DOWN" : "UP";
             gearEl.style.color = this.planeState.gearRetracted ? "#4caf50" : "#ff5252";
         }
 
@@ -1688,7 +1688,7 @@ class FlightSimulator {
     // Mantém o avião e os inimigos parados enquanto o jogador lê os modais.
     isSimulationPaused() {
         return !!this.startScreen?.classList.contains('visible') ||
-            (this.combatManager?.enabled && this.combatManager.missionState !== 'active');
+            (this.combatManager?.enabled && !this.combatManager.isMissionInProgress());
     }
 
     clearFlightInputs() {
@@ -1917,8 +1917,8 @@ class FlightSimulator {
         // Sul (S), Leste (L), Oeste (O) - Ciano
         ctx.fillStyle = '#00f2fe';
         ctx.fillText('S', cx + R * sinT, cy - R * cosT);
-        ctx.fillText('L', cx - R * cosT, cy - R * sinT);
-        ctx.fillText('O', cx + R * cosT, cy + R * sinT);
+        ctx.fillText('E', cx - R * cosT, cy - R * sinT);
+        ctx.fillText('W', cx + R * cosT, cy + R * sinT);
 
         // 5. Ícone do Avião do Jogador no Centro (Sempre apontando para FRENTE / CIMA)
         ctx.save();
@@ -1994,10 +1994,10 @@ class FlightSimulator {
         }
 
         const speedBtn = document.getElementById('btnReplaySpeed');
-        if (speedBtn) speedBtn.textContent = '⚡ Vel: 2.0x';
+        if (speedBtn) speedBtn.textContent = '⚡ Speed: 2.0x';
 
         const pauseBtn = document.getElementById('btnReplayPlayPause');
-        if (pauseBtn) pauseBtn.textContent = '⏸ Pausar';
+        if (pauseBtn) pauseBtn.textContent = '⏸ Pause';
     }
 
     stopReplay() {
@@ -2013,7 +2013,7 @@ class FlightSimulator {
         this.replayPaused = !this.replayPaused;
         const pauseBtn = document.getElementById('btnReplayPlayPause');
         if (pauseBtn) {
-            pauseBtn.textContent = this.replayPaused ? '▶ Reproduzir' : '⏸ Pausar';
+            pauseBtn.textContent = this.replayPaused ? '▶ Play' : '⏸ Pause';
         }
     }
 
@@ -2028,7 +2028,7 @@ class FlightSimulator {
 
         const speedBtn = document.getElementById('btnReplaySpeed');
         if (speedBtn) {
-            speedBtn.textContent = `⚡ Vel: ${this.replaySpeed.toFixed(1)}x`;
+            speedBtn.textContent = `⚡ Speed: ${this.replaySpeed.toFixed(1)}x`;
         }
     }
 
@@ -2294,7 +2294,7 @@ class FlightSimulator {
             // Exibir mensagem de pouso seguro se desacelerar
             if (this.planeState.speed < 2 && !this.landingReportDisplayed) {
                 this.landingMessage.style.display = 'block';
-                this.landingMessage.textContent = 'Pouso Seguro - Reabastecendo e Reparando';
+                this.landingMessage.textContent = 'Safe Landing - Refueling and Repairs';
             } else {
                 this.landingMessage.style.display = 'none';
             }
@@ -2334,15 +2334,15 @@ class FlightSimulator {
 
         // Cálculo do Score de Suavidade do Toque (Velocidade Vertical)
         let forceScore = 100;
-        let forceRating = "Manteiga";
+        let forceRating = "Butter";
         if (verticalSpeed > 0.5) {
             forceScore = Math.max(0, 100 - (verticalSpeed - 0.5) * 25);
             if (verticalSpeed > 3.0) {
-                forceRating = "Duro";
+                forceRating = "Hard";
             } else if (verticalSpeed > 1.5) {
-                forceRating = "Firme";
+                forceRating = "Firm";
             } else {
-                forceRating = "Suave";
+                forceRating = "Soft";
             }
         }
 
@@ -2530,7 +2530,7 @@ class FlightSimulator {
 
         // Mostrar tela de fim de jogo
         if (this.gameOverScreen) {
-            this.gameOverTitle.textContent = "SIMULAÇÃO ENCERRADA";
+            this.gameOverTitle.textContent = "SIMULATION ENDED";
             this.gameOverMessage.textContent = message;
             this.gameOverScreen.style.display = 'flex';
             setTimeout(() => {
@@ -2691,7 +2691,7 @@ class FlightSimulator {
             this.startCameraShake(0.35, 24);
 
             if (this.playerHealth <= 0) {
-                this.handleCrash("Você colidiu contra um edifício da cidade!");
+                this.handleCrash("You crashed into a city building!");
                 return;
             }
         }
@@ -2769,7 +2769,7 @@ class FlightSimulator {
 
             // Detectar Pouso Sem Trem de Pouso (Explosão)
             if (distanceToGround <= groundTouchThreshold && !this.planeState.gearRetracted) {
-                this.handleCrash("pouso sem trem de pouso");
+                this.handleCrash("You landed with the landing gear up!");
                 return;
             }
 
@@ -2826,7 +2826,7 @@ class FlightSimulator {
                         this.planeState.speed = Math.max(0, this.planeState.speed - 0.07); // Freia
 
                         if (this.playerHealth <= 0) {
-                            this.handleCrash("Você colidiu contra o terreno irregular!");
+                            this.handleCrash("You crashed into rough terrain!");
                             return;
                         }
                     }

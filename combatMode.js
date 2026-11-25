@@ -19,6 +19,8 @@ export default class CombatManager {
         this.missionState = 'idle';
         this.missionTruckCount = 6;
         this.missionElapsed = 0;
+        this.missionHasFlown = false;
+        this.missionLandingTime = 0;
         this.shotsFired = 0;
         this.missilesFired = 0;
         this.bombsDropped = 0;
@@ -165,6 +167,8 @@ export default class CombatManager {
         this.trucksDestroyed = 0;
         this.planesDestroyed = 0;
         this.missionElapsed = 0;
+        this.missionHasFlown = false;
+        this.missionLandingTime = 0;
         this.shotsFired = 0;
         this.missilesFired = 0;
         this.bombsDropped = 0;
@@ -175,7 +179,7 @@ export default class CombatManager {
         this.missionState = 'briefing';
         this.spawnWave(1);
         const objective = document.getElementById('missionObjective');
-        if (objective) objective.textContent = `Destrua todos os ${this.missionTruckCount} caminhões na estrada e os ${this.maxEnemies} aviões inimigos.`;
+        if (objective) objective.textContent = `Destroy all ${this.missionTruckCount} trucks and ${this.maxEnemies} enemy aircraft, then land on a runway and come to a stop to finish the mission.`;
         if (showBriefing) this.showMissionDialog('missionBriefingModal', 'btnBeginMission');
         else this.beginMission();
     }
@@ -190,18 +194,41 @@ export default class CombatManager {
         this.sim.startEngineAudio();
     }
 
-    // Encerra uma única missão e aguarda a escolha antes de gerar novos inimigos.
-    completeMission() {
+    isMissionInProgress() {
+        return this.enabled && (this.missionState === 'active' || this.missionState === 'returning');
+    }
+
+    // Mantém o voo liberado depois de eliminar os alvos e solicita o pouso.
+    returnToBase() {
         if (this.missionState !== 'active') return;
+        this.missionState = 'returning';
+        this.missionLandingTime = 0;
+        this.clearActiveEntities();
+        this.updateMissionHUD();
+        this.showCombatToast('All targets destroyed. Lower the gear, land on a runway, and stop with the throttle at idle to finish the mission.');
+    }
+
+    // Exige um pouso seguro e um segundo parado na pista antes de mostrar o resultado.
+    updateMissionLanding(dt) {
+        const safeLanding = this.missionHasFlown && this.sim._isOnGround && this.sim._onGroundOnRunway &&
+            this.sim.planeState.gearRetracted && this.sim.planeState.speed <= 0.05 &&
+            this.sim.planeState.throttle <= 0.05 && this.sim.playerHealth > 0;
+        this.missionLandingTime = safeLanding ? this.missionLandingTime + dt : 0;
+        if (this.missionLandingTime >= 1) this.completeMission();
+    }
+
+    // Encerra a missão somente após o pouso e aguarda a escolha do jogador.
+    completeMission() {
+        if (this.missionState !== 'returning' || this.missionLandingTime < 1) return;
         this.missionState = 'complete';
         this.score += 500;
         this.updateMissionHUD();
         const seconds = Math.floor(this.missionElapsed);
         const values = {
-            missionFinalScore: this.score.toLocaleString('pt-BR'),
+            missionFinalScore: this.score.toLocaleString('en-US'),
             missionFinalTrucks: `${this.trucksDestroyed} / ${this.missionTruckCount}`,
             missionFinalPlanes: `${this.planesDestroyed} / ${this.maxEnemies}`,
-            missionFinalTime: `${Math.floor(seconds / 60)}min ${String(seconds % 60).padStart(2, '0')}s`,
+            missionFinalTime: `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`,
             missionFinalShots: this.shotsFired,
             missionFinalMissiles: this.missilesFired,
             missionFinalBombs: this.bombsDropped
@@ -1076,16 +1103,21 @@ export default class CombatManager {
             this.ammo = this.maxAmmo;
             this.bombs = this.maxBombs;
             this.missiles = this.maxMissiles;
-            this.showCombatToast('🔄 Reabastecido: 1.000 tiros, 8 mísseis e 8 bombas!');
+            this.showCombatToast('🔄 Rearmed: 1,000 rounds, 8 missiles, and 8 bombs!');
             this.updateMissionHUD();
         }
     }
 
     update(dt) {
-        if (!this.enabled || this.missionState !== 'active' || this.sim.gameOver || this.sim.isReplaying) return;
+        if (!this.isMissionInProgress() || this.sim.gameOver || this.sim.isReplaying) return;
         dt = THREE.MathUtils.clamp(dt, 0, 0.05);
         this.missionElapsed += dt;
+        if (!this.sim._isOnGround) this.missionHasFlown = true;
         this.updateWeaponEffects(dt);
+        if (this.missionState === 'returning') {
+            this.updateMissionLanding(dt);
+            return;
+        }
 
         if (this.gunCooldown > 0) this.gunCooldown -= dt;
         if (this.bombCooldown > 0) this.bombCooldown -= dt;
@@ -1424,7 +1456,7 @@ export default class CombatManager {
                 this.enemyBullets.splice(i, 1);
 
                 if (this.sim.playerHealth <= 0) {
-                    this.sim.handleCrash('Você foi abatido pelo fogo inimigo!');
+                    this.sim.handleCrash('You were shot down by enemy fire!');
                     return;
                 }
                 continue;
@@ -1436,10 +1468,10 @@ export default class CombatManager {
             }
         }
 
-        // Confere os alvos após os impactos e abre o resultado sem iniciar outra onda.
+        // Confere os alvos após os impactos e libera o retorno para pouso.
         const anyTruckAlive = this.trucks.some(t => t.alive);
         const anyEnemyAlive = this.enemies.some(enemy => enemy.alive);
-        if (!anyTruckAlive && !anyEnemyAlive) this.completeMission();
+        if (!anyTruckAlive && !anyEnemyAlive) this.returnToBase();
     }
 
     spawnEnemyShot(origin, targetPos, speed) {
@@ -1502,7 +1534,7 @@ export default class CombatManager {
         const elMissiles = document.getElementById('missionMissiles');
         const elWave = document.getElementById('missionWave');
 
-        if (elWave) elWave.textContent = 'MISSÃO';
+        if (elWave) elWave.textContent = this.missionState === 'returning' ? 'LAND TO FINISH' : 'MISSION';
         if (elScore) elScore.textContent = this.score;
         if (elTrucks) elTrucks.textContent = aliveTrucks;
         if (elPlanes) elPlanes.textContent = alivePlanes;
@@ -1566,7 +1598,7 @@ export default class CombatManager {
             ctx.closePath();
             ctx.stroke();
 
-            ctx.fillText(`CAÇA ${dist}m`, sx, sy - r - 6);
+            ctx.fillText(`FIGHTER ${dist}m`, sx, sy - r - 6);
         }
 
     }

@@ -14,7 +14,7 @@ export default class CityManager {
                 scale: [4.5, 2.5, 4.5], 
                 count: 1000, 
                 health: 100, // 2 tiros
-                name: 'Casa' 
+                name: 'House'
             },
             building: { 
                 colors: [0xb5c0c7, 0x899aa6, 0xd0cbbd, 0x758996, 0xa9b0ae],
@@ -22,7 +22,7 @@ export default class CityManager {
                 heightScaleRange: [0.7, 1.8], 
                 count: 400, 
                 health: 200, // 4 tiros
-                name: 'Prédio' 
+                name: 'Building'
             },
             health: { 
                 colors: [0xffffff, 0xe0e0e0], 
@@ -36,28 +36,28 @@ export default class CityManager {
                 scale: [8, 3.5, 6], 
                 count: 20, 
                 health: 200, // 4 tiros
-                name: 'Escola' 
+                name: 'School'
             },
             cityHall: { 
                 colors: [0x2980b9, 0x3498db], 
                 scale: [7, 5, 7], 
                 count: 10, 
                 health: 200, // 4 tiros
-                name: 'Prefeitura' 
+                name: 'City Hall'
             },
             powerPlant: { 
                 colors: [0x2c3e50, 0x34495e], 
                 scale: [9, 6, 9], 
                 count: 15, 
                 health: 300, // 6 tiros
-                name: 'Usina' 
+                name: 'Power Plant'
             },
             waterPlant: { 
                 colors: [0x3498db, 0x2980b9], 
                 scale: [9, 3, 9], 
                 count: 15, 
                 health: 200, // 4 tiros
-                name: 'ETA' 
+                name: 'Water Treatment Plant'
             }
         };
         

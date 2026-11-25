@@ -59,34 +59,34 @@ export default class Autopilot {
             <div class="ap-header">
                 <div class="ap-title">
                     <span class="ap-icon">✈️</span>
-                    <span>PILOTO AUTOMÁTICO</span>
+                    <span>AUTOPILOT</span>
                 </div>
-                <div id="apStatusBadge" class="ap-badge ap-off">DESLIGADO</div>
+                <div id="apStatusBadge" class="ap-badge ap-off">OFF</div>
             </div>
             
             <div class="ap-body">
                 <div class="ap-field">
-                    <label for="apAltInput">ALTITUDE ALVO (m)</label>
+                    <label for="apAltInput">TARGET ALTITUDE (m)</label>
                     <div class="ap-input-group">
                         <input type="number" id="apAltInput" min="50" max="5000" step="50" value="${this.targetAltitude}">
-                        <button type="button" id="btnSyncAlt" class="ap-btn-sub" title="Usar altitude atual">USAR ATUAL</button>
+                        <button type="button" id="btnSyncAlt" class="ap-btn-sub" title="Use current altitude">USE CURRENT</button>
                     </div>
                 </div>
 
                 <div class="ap-field">
-                    <label for="apSpeedInput">VELOCIDADE ALVO (km/h)</label>
+                    <label for="apSpeedInput">TARGET SPEED (km/h)</label>
                     <div class="ap-input-group">
                         <input type="number" id="apSpeedInput" min="270" max="600" step="10" value="${this.targetSpeed}">
-                        <button type="button" id="btnSyncSpeed" class="ap-btn-sub" title="Usar velocidade atual">USAR ATUAL</button>
+                        <button type="button" id="btnSyncSpeed" class="ap-btn-sub" title="Use current speed">USE CURRENT</button>
                     </div>
                 </div>
 
                 <div class="ap-actions">
                     <button type="button" id="btnToggleAP" class="ap-btn ap-btn-toggle">
-                        LIGAR (P)
+                        TURN ON (P)
                     </button>
-                    <button type="button" id="btnLevelPlane" class="ap-btn ap-btn-level" title="Nivelar asas e inclinação imediatamente">
-                        NIVELAR AVIÃO
+                    <button type="button" id="btnLevelPlane" class="ap-btn ap-btn-level" title="Immediately level the wings and pitch">
+                        LEVEL AIRCRAFT
                     </button>
                 </div>
             </div>
@@ -138,7 +138,7 @@ export default class Autopilot {
                 const currentAlt = Math.round(this.simulator.planeState.altitude * 5);
                 this.targetAltitude = Math.max(this.minAltitudeMeters, currentAlt);
                 this.altInput.value = this.targetAltitude;
-                this.showNotification(`Altitude Alvo ajustada para ${this.targetAltitude}m`);
+                this.showNotification(`Target altitude set to ${this.targetAltitude}m`);
             }
         });
 
@@ -148,7 +148,7 @@ export default class Autopilot {
                 const currentSpeed = Math.round(this.simulator.planeState.speed * 30);
                 this.targetSpeed = Math.max(this.minSpeedKmh, Math.min(this.maxSpeedKmh, currentSpeed));
                 this.speedInput.value = this.targetSpeed;
-                this.showNotification(`Velocidade Alvo ajustada para ${this.targetSpeed} km/h`);
+                this.showNotification(`Target speed set to ${this.targetSpeed} km/h`);
             }
         });
 
@@ -191,7 +191,7 @@ export default class Autopilot {
      */
     toggle() {
         if (this.enabled) {
-            this.disable("Piloto Automático DESATIVADO");
+            this.disable("Autopilot OFF");
         } else {
             this.enable();
         }
@@ -205,7 +205,7 @@ export default class Autopilot {
 
         // Verificar se o avião está em solo ou se o jogo acabou
         if (this.simulator.gameOver || this.simulator._isOnGround || this.simulator.planeState.altitude < 1.5) {
-            this.showNotification("⚠️ Piloto Automático só funciona em VOO!", true);
+            this.showNotification("⚠️ Autopilot is only available in flight!", true);
             return;
         }
 
@@ -220,13 +220,13 @@ export default class Autopilot {
             this.targetSpeed = parseFloat(this.speedInput.value) || this.targetSpeed;
         }
 
-        this.showNotification("✈️ Piloto Automático ATIVADO");
+        this.showNotification("✈️ Autopilot ON");
     }
 
     /**
      * Desativa o Piloto Automático.
      */
-    disable(reason = "Piloto Automático DESATIVADO") {
+    disable(reason = "Autopilot OFF") {
         if (!this.enabled) return;
         this.enabled = false;
         this.updateUIState();
@@ -265,7 +265,7 @@ export default class Autopilot {
             this.enable();
         }
 
-        this.showNotification("⚖️ Avião Nivelado (Asas e Nariz Zerados)");
+        this.showNotification("⚖️ Aircraft leveled (wings and pitch level)");
     }
 
     /**
@@ -275,14 +275,14 @@ export default class Autopilot {
         if (!this.statusBadge || !this.toggleBtn) return;
 
         if (this.enabled) {
-            this.statusBadge.textContent = "ATIVADO";
+            this.statusBadge.textContent = "ON";
             this.statusBadge.className = "ap-badge ap-on";
-            this.toggleBtn.textContent = "DESLIGAR (P)";
+            this.toggleBtn.textContent = "TURN OFF (P)";
             this.toggleBtn.classList.add("active");
         } else {
-            this.statusBadge.textContent = "DESLIGADO";
+            this.statusBadge.textContent = "OFF";
             this.statusBadge.className = "ap-badge ap-off";
-            this.toggleBtn.textContent = "LIGAR (P)";
+            this.toggleBtn.textContent = "TURN ON (P)";
             this.toggleBtn.classList.remove("active");
         }
     }
@@ -313,7 +313,7 @@ export default class Autopilot {
 
         // Segurança 1: Se pousou ou tocou o solo, desativa imediatamente o P.A.
         if (isOnGround || (planeState && planeState.altitude < 1.0)) {
-            this.disable("⚠️ P.A. desativado automaticamente ao se aproximar do solo!");
+            this.disable("⚠️ Autopilot automatically disengaged near the ground!");
             return;
         }
 
