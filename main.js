@@ -9,7 +9,7 @@ import CityManager from './city.js?v=1.0.8';
 import City2Manager from './city2.js?v=1.0.6';
 import Autopilot from './autopilot.js?v=1.0.9';
 import AirlinerHUD from './airlinerHud.js?v=1.0.9';
-import CombatManager from './combatMode.js?v=1.0.7';
+import CombatManager from './combatMode.js?v=1.0.8';
 import ExplosionEffects from './explosionEffects.js?v=1.0.1';
 
 // Adiciona o método de raycast acelerado ao protótipo do Mesh
@@ -1671,7 +1671,7 @@ class FlightSimulator {
                 this.setQualityMode(qualityMode);
 
                 const selectedGameMode = document.querySelector('input[name="gameMode"]:checked');
-                const gameMode = selectedGameMode ? selectedGameMode.value : 'free';
+                const gameMode = selectedGameMode ? selectedGameMode.value : 'combat';
                 if (this.startScreen) {
                     this.startScreen.classList.remove('visible');
                 }
@@ -1700,14 +1700,31 @@ class FlightSimulator {
         if (this.combatManager) this.combatManager.isFiringGun = false;
     }
 
-    // Restaura a decolagem na pista principal para uma nova missão ou retorno ao menu.
-    resetCombatFlight() {
+    // Prepara o avião para decolar e preserva o aeroporto ao continuar a missão.
+    resetCombatFlight(preserveLocation = false) {
+        const landedPosition = preserveLocation ? this.airplane.position.clone() : null;
+        const landedRotation = preserveLocation ? this.airplane.rotation.clone() : null;
+        const landedState = preserveLocation ? {
+            rotation: this.planeState.rotation,
+            pitch: this.planeState.pitch,
+            roll: this.planeState.roll,
+            visualAoA: this.planeState.visualAoA || 0,
+            flapTarget: this.planeState.flapTarget,
+            flapAngle: this.planeState.flapAngle,
+            gearRetracted: this.planeState.gearRetracted,
+            altitude: landedPosition.y
+        } : {};
         this.stopEngineAudio();
         this.stopReplay();
         this.clearFlightInputs();
-        this.planeState = { ...this.initialPlaneState };
-        this.airplane.position.set(0, 0.51, -50);
-        this.airplane.rotation.set(0, 0, 0);
+        this.planeState = { ...this.initialPlaneState, ...landedState };
+        if (preserveLocation) {
+            this.airplane.position.copy(landedPosition);
+            this.airplane.rotation.copy(landedRotation);
+        } else {
+            this.airplane.position.set(0, 0.51, -50);
+            this.airplane.rotation.set(0, 0, 0);
+        }
         this.airplane.visible = true;
         this.playerHealth = 100;
         this.cameraMode = 'thirdPerson';
@@ -1717,7 +1734,7 @@ class FlightSimulator {
         this._isOnGround = true;
         this._onGroundOnRunway = true;
         this._lastPhysicsTime = this.lastTime = performance.now();
-        this.lastAltitude = 0.51;
+        this.lastAltitude = this.airplane.position.y;
         this.currentVerticalSpeed = 0;
         this.wasInAir = false;
         this.touchdownData = null;
@@ -1728,6 +1745,9 @@ class FlightSimulator {
         this.spokenCallouts = { 50: false, 40: false, 30: false, 20: false, 10: false };
         this.flightHistory = [];
         this.recordedReplayData = [];
+        if (this.landingTimer) clearTimeout(this.landingTimer);
+        this.landingTimer = null;
+        if (this.landingMessage) this.landingMessage.style.display = 'none';
         this.landingModal?.classList.remove('visible');
         if (this.landingModal) this.landingModal.style.display = 'none';
         this.autopilot.enabled = false;

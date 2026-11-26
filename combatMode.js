@@ -159,10 +159,12 @@ export default class CombatManager {
         document.getElementById(buttonId)?.focus();
     }
 
-    // Reinicia os mesmos alvos, a pontuação e o avião sem recriar o cenário.
+    // Sorteia novos alvos e mantém o aeroporto de pouso nas ondas seguintes.
     startMission(showBriefing = true) {
+        const continuing = !showBriefing && this.missionState === 'complete';
+        const nextWave = continuing ? this.wave + 1 : 1;
         this.clearActiveEntities();
-        this.sim.resetCombatFlight();
+        this.sim.resetCombatFlight(continuing);
         this.score = 0;
         this.trucksDestroyed = 0;
         this.planesDestroyed = 0;
@@ -177,7 +179,7 @@ export default class CombatManager {
         this.missiles = this.maxMissiles;
         this.gunCooldown = this.bombCooldown = this.missileCooldown = 0;
         this.missionState = 'briefing';
-        this.spawnWave(1);
+        this.spawnWave(nextWave);
         const objective = document.getElementById('missionObjective');
         if (objective) objective.textContent = `Destroy all ${this.missionTruckCount} trucks and ${this.maxEnemies} enemy aircraft, then land on a runway and come to a stop to finish the mission.`;
         if (showBriefing) this.showMissionDialog('missionBriefingModal', 'btnBeginMission');
@@ -504,13 +506,13 @@ export default class CombatManager {
         for (let i = 0; i < truckCount; i++) {
             const isAA = i % 3 === 1;
             const { group } = this.createTruckMesh(isAA);
-            const t = (0.08 + i * 0.065) % 0.9;
-            const dir = i < Math.ceil(truckCount / 2) ? 1 : -1;
+            const t = 0.06 + (i + Math.random()) * 0.88 / truckCount;
+            const dir = Math.random() < 0.5 ? 1 : -1;
 
             const truck = {
                 id: `truck_${waveNum}_${i}`,
                 mesh: group,
-                t: dir === 1 ? t : (0.92 - i * 0.04),
+                t,
                 dir,
                 speed: 0.0064 + Math.random() * 0.0024,
                 isAntiAir: isAA,
@@ -557,6 +559,15 @@ export default class CombatManager {
             ]
         ];
 
+        // Varia o sentido das patrulhas e embaralha os corredores entre as ondas.
+        corridorRoutes.forEach(route => {
+            if (Math.random() < 0.5) route.reverse();
+        });
+        const routeOrder = corridorRoutes.map((_, index) => index);
+        for (let i = routeOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [routeOrder[i], routeOrder[j]] = [routeOrder[j], routeOrder[i]];
+        }
         const patrolRoutes = corridorRoutes.map(route => {
             const curve = new THREE.CatmullRomCurve3(route, true, 'centripetal');
             const samples = curve.getSpacedPoints(128).slice(0, 128);
@@ -567,14 +578,24 @@ export default class CombatManager {
         });
         const planeCount = this.maxEnemies;
         for (let i = 0; i < planeCount; i++) {
-            const route = corridorRoutes[i % corridorRoutes.length];
-            const startWpIdx = i % route.length;
-            const nextWpIdx = (startWpIdx + 1) % route.length;
-            const startPt = route[startWpIdx];
-            const nextPt = route[nextWpIdx];
-
-            const px = startPt.x + (Math.random() - 0.5) * 40;
-            const pz = startPt.z + (Math.random() - 0.5) * 40;
+            const routeIndex = routeOrder[i % routeOrder.length];
+            const route = corridorRoutes[routeIndex];
+            const patrolRoute = patrolRoutes[routeIndex];
+            let startIndex;
+            let startPt;
+            // Sorteia pontos da rota e evita caças agrupados ou junto ao piloto.
+            for (let attempt = 0; attempt < 32; attempt++) {
+                startIndex = Math.floor(Math.random() * patrolRoute.samples.length);
+                startPt = patrolRoute.samples[startIndex];
+                const clearOfPlayer = Math.hypot(startPt.x - this.sim.airplane.position.x,
+                    startPt.z - this.sim.airplane.position.z) > 180;
+                const clearOfEnemies = this.enemies.every(enemy =>
+                    Math.hypot(startPt.x - enemy.position.x, startPt.z - enemy.position.z) > 70);
+                if (clearOfPlayer && clearOfEnemies) break;
+            }
+            const nextPt = patrolRoute.samples[(startIndex + 4) % patrolRoute.samples.length];
+            const px = startPt.x;
+            const pz = startPt.z;
             const terrainY = this.getGroundHeightAt(px, pz);
             const initialYaw = Math.atan2(nextPt.x - px, nextPt.z - pz);
             // Usa unidades por segundo na mesma escala de deslocamento do jogador.
@@ -583,7 +604,7 @@ export default class CombatManager {
                 px + Math.sin(initialYaw) * baseSpeed * 3,
                 pz + Math.cos(initialYaw) * baseSpeed * 3
             );
-            const py = Math.max(terrainY + 65, departureTerrain + 60, startPt.y + 20);
+            const py = Math.max(terrainY + 65, departureTerrain + 60, startPt.y + Math.random() * 25);
 
             this.enemies.push({
                 index: i,
@@ -600,8 +621,7 @@ export default class CombatManager {
                 fireCooldown: 2.0 + Math.random() * 2.0,
                 alive: true,
                 route,
-                patrolRoute: patrolRoutes[i % patrolRoutes.length],
-                waypointIndex: nextWpIdx,
+                patrolRoute,
                 state: 'patrol', // 'patrol' | 'intercept' | 'break'
                 stateTimer: 0,
                 breakDir: (i % 2 === 0 ? 1 : -1),
@@ -1534,7 +1554,7 @@ export default class CombatManager {
         const elMissiles = document.getElementById('missionMissiles');
         const elWave = document.getElementById('missionWave');
 
-        if (elWave) elWave.textContent = this.missionState === 'returning' ? 'LAND TO FINISH' : 'MISSION';
+        if (elWave) elWave.textContent = this.missionState === 'returning' ? 'LAND TO FINISH' : `WAVE ${this.wave}`;
         if (elScore) elScore.textContent = this.score;
         if (elTrucks) elTrucks.textContent = aliveTrucks;
         if (elPlanes) elPlanes.textContent = alivePlanes;

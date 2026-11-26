@@ -162,7 +162,7 @@
                 <div><dt>Bombs dropped</dt><dd id="missionFinalBombs">0</dd></div>
             </dl>
             <p class="mission-score-note">150 points per truck · 250 per aircraft · 500 mission completion bonus.</p>
-            <p>Would you like to play the mission again or return to the main menu?</p>
+            <p>Continue with a new wave from this airport, or return to the main menu?</p>
             <div class="mission-dialog-actions">
                 <button id="btnRepeatMission" type="button">Continue</button>
                 <button id="btnStopMission" class="mission-button-secondary" type="button">Stop and Return to Menu</button>
@@ -304,18 +304,18 @@
                 <div class="info-card mode-card">
                     <h3>🎯 GAME MODE</h3>
                     <div class="quality-options">
-                        <label class="quality-option active" id="optModeFree">
-                            <input type="radio" name="gameMode" value="free" checked>
+                        <label class="quality-option active" id="optModeCombat">
+                            <input type="radio" name="gameMode" value="combat" checked>
+                            <div class="opt-content">
+                                <span class="opt-title">🔥 MISSION / COMBAT MODE</span>
+                                <span class="opt-desc">Destroy all trucks and five enemy aircraft, then land and stop on a runway to finish. Continue from that airport with new enemy positions.</span>
+                            </div>
+                        </label>
+                        <label class="quality-option" id="optModeFree">
+                            <input type="radio" name="gameMode" value="free">
                             <div class="opt-content">
                                 <span class="opt-title">✈️ FREE FLIGHT (CIVILIAN)</span>
                                 <span class="opt-desc">Practice takeoffs, navigation, and landings.</span>
-                            </div>
-                        </label>
-                        <label class="quality-option" id="optModeCombat">
-                            <input type="radio" name="gameMode" value="combat">
-                            <div class="opt-content">
-                                <span class="opt-title">🔥 MISSION / COMBAT MODE</span>
-                                <span class="opt-desc">Destroy all trucks and five enemy aircraft, then land and stop on a runway to finish. Land to rearm during the mission.</span>
                             </div>
                         </label>
                     </div>
@@ -349,6 +349,6 @@
         </div>
     </div>
 
-    <script type="module" src="./main.js?v=1.0.16"></script>
+    <script type="module" src="./main.js?v=1.0.17"></script>
 </body>
 </html>
